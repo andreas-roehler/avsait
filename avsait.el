@@ -70,6 +70,12 @@ Default is nil.
   :type 'boolean
   :tag "avsait_no_cleanup-p")
 
+(defun avsait-toggle-no_cleanup ()
+  "Toggle use of electric colon for Python code."
+  (interactive)
+  (setq avsait_no_cleanup-p (not avsait_no_cleanup-p))
+  (when (and ar-verbose-p (called-interactively-p 'interactive)) (message "avsait_no_cleanup-p: %s" avsait_no_cleanup-p)))
+
 (defun avsait-toggle-read-from-input-file ()
   "Toggle use of electric colon for Python code."
   (interactive)
