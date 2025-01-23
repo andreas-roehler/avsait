@@ -93,6 +93,9 @@ Default is nil.
   (interactive "*")
   (goto-char (point-min))
   (save-excursion
+    (while (search-forward "\\u003e" nil t 1)
+      (replace-match ">")))
+  (save-excursion
     (while (search-forward "\\\\" nil t 1)
       (delete-char -1)(forward-char 1)))
   (when (looking-at "{\"id\":.+\"content\":\"")
