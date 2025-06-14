@@ -1,6 +1,6 @@
-;;; avsait.el --- A very simple AI query tool
+;;; avsait.el --- A very simple AI query tool -*- lexical-binding: t; -*-
 
-;" This program is free software" you can redistribute it and/or modify
+;; This program is free software" you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
 ;; (at your option) any later version.
@@ -16,7 +16,7 @@
 ;;; Commentary: Get responses from AI-bots into an Emacs buffer.
 
 ;; Output gets an unique name related to a buffer, that way subsequent answers don't get lost.
-;; By default output is stored in customizable ‘avsait-ml-output-dir’
+;; By default output is stored in customizable ‘avsait-output-dir’
 
 ;; Usage: Define your query-commands providing arguments as string like this:
 
@@ -36,39 +36,8 @@
 
 ;;; Code:
 
-(defcustom avsait-ml-output-dir ""
-  "If set, the result will be stored in that directory. If left empty, no storage."
-  :type 'string
-  :tag "avsait-ml-output-dir"
-  )
-
-(defcustom avsait_input-file ""
-  "In case, input should be read from a file, define its location here.
-  If left empty, input is read from minibuffers prompt.
-
-See also ‘avsait_read-from-input-file-p’"
-  :type 'string
-  :tag "avsait_input-file")
-
-(defcustom avsait-output-buffer ""
-  "By default, avsait will create a new dedicated buffer for each query.
-If you wish a default buffer-name instead, specify it here."
-  :type 'string
-  :tag "avsait-output-buffer")
-
-(defcustom avsait_read-from-input-file-p nil
-  "If prompt-texts should be read from an input-file instead from minibuffer.
-Default is nil.
-"
-  :type 'boolean
-  :tag "avsait_read-from-input-file-p")
-
-(defcustom avsait_no_cleanup-p nil
-  "Leave output as received, no cleanup.
-Default is nil.
-"
-  :type 'boolean
-  :tag "avsait_no_cleanup-p")
+(require 'avsait-config)
+(require 'avsait-secrets)
 
 (defun avsait-toggle-no_cleanup ()
   "Toggle use of electric colon for Python code."
@@ -76,30 +45,60 @@ Default is nil.
   (setq avsait_no_cleanup-p (not avsait_no_cleanup-p))
   (when (and ar-verbose-p (called-interactively-p 'interactive)) (message "avsait_no_cleanup-p: %s" avsait_no_cleanup-p)))
 
+(defalias 'avsait-open-input-file 'avsait-input-file)
+(defun avsait-input-file()
+  "Open the input file"
+  (interactive)
+  (find-file avsait_input-file))
+
 (defun avsait-toggle-read-from-input-file ()
-  "Toggle use of electric colon for Python code."
+  "Avsait toggle ‘read-from-input-file-p’ value .
+
+If off, with \\[universal-argument] gets prompted for a file"
   (interactive)
   (setq avsait_read-from-input-file-p (not avsait_read-from-input-file-p))
   (when (and ar-verbose-p (called-interactively-p 'interactive)) (message "avsait_read-from-input-file-p: %s" avsait_read-from-input-file-p)))
 
-(unless (symbolp 'ar-verbose-p)
-  (defcustom ar-verbose-p nil
-    "Verbosity."
-    :type 'boolean
-    :tag "ar-verbose-p"))
+(defalias 'avsait-switch-output-dir 'avsait-current2output-dir)
+(defun avsait-current2output-dir ()
+  "Make the current dired directory the ‘avsait-output-dir’.
+
+Writes value of new ‘avsait-output-dir’ into ‘custom-file’
+An alternative to ‘M-x customize-variable ...’ "
+  (interactive)
+  (let ((erg (expand-file-name default-directory)))
+    (load custom-file)
+    (find-file custom-file)
+    (goto-char (point-min))
+    (if (search-forward avsait-output-dir nil t)
+        (if (string= erg (match-string-no-properties 0) )
+            (message "%s already current value" erg)
+          (replace-match erg)
+          (back-to-indentation)
+          (push-mark)
+          (end-of-line)
+          (skip-chars-backward " \t\r\n\f")
+          (transient-mark-mode 1)
+          (when (yes-or-no-p "Write custom-file?") (write-file custom-file)))
+      (error (concat "Can't see " custom-file)))))
 
 (defun avsait-cleanup()
   "Cleanup the output-buffer."
   (interactive "*")
+  (switch-to-buffer (current-buffer))
   (goto-char (point-min))
   (save-excursion
-    (while (search-forward "\\u003e" nil t 1)
+    (while (re-search-forward "\\\\u003[ce]" nil t 1)
       (replace-match ">")))
   (save-excursion
     (while (search-forward "\\\\" nil t 1)
       (delete-char -1)(forward-char 1)))
   (when (looking-at "{\"id\":.+\"content\":\"")
     (delete-region (match-beginning 0) (match-end 0)))
+  (save-excursion (while (search-forward "\\\""nil t 1)
+                    (replace-match "\"")))
+  (save-excursion (while (search-forward "**"nil t 1)
+                    (replace-match "")))
   (save-excursion (while (re-search-forward "\\/\$"nil t 1)
                     (replace-match "")))
   (save-excursion (while (re-search-forward "\\\\n\\|\\\\t"nil t 1)
@@ -127,7 +126,7 @@ Default is nil.
                     (forward-paragraph)
                     (skip-chars-forward " \t\r\n\f"))))
 
-(defun avsait (arg api key model &optional text)
+(defun avsait (arg api key &optional model text)
   "Query LLM.
 Argument ARG With \\[universal-argument] read from input-file, not from minibuffer.
 
@@ -136,7 +135,8 @@ See also customizable ‘avsait_read-from-input-file-p’ and
 
 API: which endpoint to access.
 KEY: the token provided by the API
-MODEL: the LLM"
+MODEL: the LLM
+TEXT: the query when called from a program"
   (interactive "P")
   ;; (unless (eq 4 (prefix-numeric-value arg))
   ;; (find-file avsait_input-file))
@@ -146,10 +146,11 @@ MODEL: the LLM"
                        (progn (find-file avsait_input-file)
                               (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))
                      (read-from-minibuffer "Eingabe: " (car kill-ring)))))
+         (modes (or model "llama-3.3-70b-versatile"))
          (start (if (string-match " " text)
                     (+ 1 (string-match " " text))
                   0))
-         (outbut-buffer-init-text (substring text 0 (string-match " " text start)))
+         (outbut-buffer-init-text (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0))))
          (output-buffer (if (not (string= "" avsait-output-buffer))
                             avsait-output-buffer
                           (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text"))))
@@ -166,12 +167,31 @@ MODEL: the LLM"
 ") output-buffer)
     ;; (sit-for 1)
     (set-buffer output-buffer)
-    (switch-to-buffer output-buffer)
-    (write-file (expand-file-name (concat avsait-ml-output-dir "/" output-buffer)))
-    (switch-to-buffer output-buffer)
     (delete-other-windows)
     (unless avsait_no_cleanup-p
-      (avsait-cleanup))))
+      (avsait-cleanup))
+    (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer)))
+    (switch-to-buffer output-buffer)))
+
+(defalias 'gq 'groq)
+(defun groq (&optional arg)
+  (interactive "P")
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
+
+(defalias 'ds 'groqDeepSeek)
+(defun groqDeepSeek (&optional arg)
+  (interactive "P")
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b"))
+
+;; DeepSeek-R1-Distill-Llama-70b
+(defun chatGPT (&optional arg)
+  (interactive "P")
+  (avsait arg "https://chatgpt.com/" chatGPT_pw))
+
+(defun groqDeepSeedDatei()
+  "Call Groq with DeepSeek and read prompts from file."
+  (interactive)
+  (avsait '(4) "https://api.groq.com/openai/v1/chat/completions -s" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b"))
 
 (provide 'avsait)
 ;;; avsait.el ends here
