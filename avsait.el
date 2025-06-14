@@ -59,6 +59,12 @@ If off, with \\[universal-argument] gets prompted for a file"
   (setq avsait_read-from-input-file-p (not avsait_read-from-input-file-p))
   (when (and ar-verbose-p (called-interactively-p 'interactive)) (message "avsait_read-from-input-file-p: %s" avsait_read-from-input-file-p)))
 
+(defun avsait--highlight-match ()
+  "Used inside avsait-current2output-dir."
+  (push-mark)
+  (back-to-indentation)
+  (exchange-point-and-mark))
+
 (defalias 'avsait-switch-output-dir 'avsait-current2output-dir)
 (defun avsait-current2output-dir ()
   "Make the current dired directory the ‘avsait-output-dir’.
@@ -66,19 +72,18 @@ If off, with \\[universal-argument] gets prompted for a file"
 Writes value of new ‘avsait-output-dir’ into ‘custom-file’
 An alternative to ‘M-x customize-variable ...’ "
   (interactive)
-  (let ((erg (expand-file-name default-directory)))
+  (let ((exchange-point-and-mark-highlight-region t)
+        (erg (expand-file-name default-directory)))
     (load custom-file)
     (find-file custom-file)
     (goto-char (point-min))
     (if (search-forward avsait-output-dir nil t)
-        (if (string= erg (match-string-no-properties 0) )
-            (message "%s already current value" erg)
+        (if (string= erg (match-string-no-properties 0))
+            (progn
+              (message "%s already current value" erg)
+              (avsait--highlight-match))
           (replace-match erg)
-          (back-to-indentation)
-          (push-mark)
-          (end-of-line)
-          (skip-chars-backward " \t\r\n\f")
-          (transient-mark-mode 1)
+          (avsait--highlight-match)
           (when (yes-or-no-p "Write custom-file?") (write-file custom-file)))
       (error (concat "Can't see " custom-file)))))
 
