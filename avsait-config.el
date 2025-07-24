@@ -17,37 +17,72 @@
 
 ;;; Code:
 
+
+(defgroup avsait nil
+  "Support for the programming language" ;; generic mark
+  :group 'convenience
+  :prefix "avsait-"
+  :group 'avsait)
+
+
 (defcustom avsait-output-dir ""
   "If set, the result will be stored in that directory. If left empty, no storage."
   :type 'string
   :tag "avsait-output-dir"
-  )
+  :group 'avsait)
 
-(defcustom avsait_input-file ""
+(defcustom avsait-input-file ""
   "In case, input should be read from a file, define its location here.
 If left empty, input is read from minibuffers prompt.
 
-See also ‘avsait_read-from-input-file-p’"
+See also ‘avsait-read-from-input-file-p’"
   :type 'string
-  :tag "avsait_input-file")
+  :tag "avsait-input-file"
+  :group 'avsait)
 
 (defcustom avsait-output-buffer ""
   "By default, avsait will create a new dedicated buffer for each query.
 If you wish a default `buffer-name' instead, specify it here."
   :type 'string
-  :tag "avsait-output-buffer")
+  :tag "avsait-output-buffer"
+  :group 'avsait)
 
-(defcustom avsait_read-from-input-file-p nil
+(defcustom avsait-read-from-input-file-p nil
   "If prompt-texts should be read from an input-file instead from minibuffer.
 Default is nil."
   :type 'boolean
-  :tag "avsait_read-from-input-file-p")
+  :tag "avsait-read-from-input-file-p"
+  :group 'avsait)
 
-(defcustom avsait_no_cleanup-p nil
-  "Leave output as received, no cleanup.
-Default is nil."
+(defcustom avsait-no-cleanup-p nil
+  "If the output should be nicely formatted.
+
+Default is nil"
   :type 'boolean
-  :tag "avsait_no_cleanup-p")
+  :tag "avsait-no-cleanup-p"
+  :safe 'booleanp
+  :group 'avsait)
+
+(defcustom avsait-verbose-p nil
+  "Verbosity.
+
+Default is nil"
+  :type 'boolean
+  :tag "avsait-verbose-p"
+  :safe 'booealp
+  :group 'avsait)
+
+(defcustom avsait-debug-p nil
+  "Debugging.
+
+Default is nil"
+  :type 'boolean
+  :tag "avsait-debug-p"
+  :safe 'booealp
+  :group 'avsait)
+
+;; (defvar avsait-debug-p nil
+;;   "Debug.")
 
 (defalias 'gq 'groq)
 (defun groq (&optional arg)
