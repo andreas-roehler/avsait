@@ -1,6 +1,6 @@
 ;;; avsait-setup-ert-tests.el --- Provide needed forms -*- lexical-binding: t; -*-
 
-;; URL: https://gitlab.com/python-mode-devs
+;; URL: https://github.com/andreas-roehler/avsait
 ;; Keywords: lisp
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,6 @@
 
 BODY is code to be executed within the temp buffer "
   (declare (indent 1) (debug t))
-  ;; (require 'python)
   `(with-temp-buffer
      (let (hs-minor-mode avsait--imenu-create-index-p)
        (insert ,contents)
@@ -40,7 +39,6 @@ BODY is code to be executed within the temp buffer "
 BODY is code to be executed within the temp buffer.  Point is
  at the beginning of buffer."
   (declare (debug t))
-  ;; (require 'python)
   `(with-temp-buffer
      (let (hs-minor-mode avsait--imenu-create-index-p)
        (insert ,contents)

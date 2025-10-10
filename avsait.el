@@ -1,5 +1,8 @@
 ;;; avsait.el --- A very simple AI query tool -*- lexical-binding: t; -*-
 
+;; URL: https://github.com/andreas-roehler/avsait
+;; Keywords: lisp, convenience
+
 ;; This program is free software" you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation, either version 3 of the License, or
