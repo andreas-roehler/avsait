@@ -40,14 +40,14 @@
 (require 'avsait-config)
 (require 'avsait-secrets)
 
-(defun avsait-toggle-no_cleanup ()
+(defun avsait-toggle-pretty-print ()
   "Toggle use of electric colon for Python code."
   (interactive)
-  (setq avsait-no-cleanup-p (not avsait-no-cleanup-p))
-  (when (and avsait-verbose-p (called-interactively-p 'interactive)) (message "avsait-no-cleanup-p: %s" avsait-no-cleanup-p)))
+  (setq avsait-pretty-print-p (not avsait-pretty-print-p))
+  (when (and avsait-verbose-p (called-interactively-p 'interactive)) (message "avsait-pretty-print-p: %s" avsait-pretty-print-p)))
 
 (defalias 'avsait-open-input-file 'avsait-input-file)
-(defun avsait-input-file()
+(defun avsait-find-input-file()
   "Open the input file"
   (interactive)
   (find-file avsait-input-file))
@@ -57,6 +57,14 @@
   (interactive)
   (setq avsait-read-from-input-file-p (not avsait-read-from-input-file-p))
   (when (called-interactively-p 'interactive) (message "avsait-read-from-input-file-p: %s" avsait-read-from-input-file-p)))
+
+(defun avsait-read-current-as-input-file()
+  "Next avsait will read the current file as input-file.
+
+Sets ‘avsait-read-from-input-file-p’ and ‘avsait-input-file’"
+  (interactive)
+  (setq avsait-read-from-input-file-p t)
+  (setq avsait-input-file (buffer-file-name)))
 
 (defun avsait-toggle-debug-p ()
   "Toggle ‘avsait-debug-p’ value."
@@ -98,7 +106,40 @@ An alternative to ‘M-x customize-variable ...’ "
           (when (yes-or-no-p "Write custom-file?") (write-file custom-file)))
       (error (concat "Can't see " custom-file)))))
 
-(defun avsait-cleanup()
+(defvar known-emacs-modes (list "ada-mode" "asm-mode" "awk-mode" "cc-mode" "clojure-mode" "css-mode" "emacs-lisp" "erlang-mode" "forth-mode" "fortran-mode" "go-mode" "haskell-mode" "html-mode" "java-mode" "js-mode" "julia-mode" "latex-mode" "lisp-mode" "lua-mode" "makefile-mode" "matlab-mode" "perl-mode" "php-mode" "python" "python-mode" "r-mode" "ruby-mode" "rust-mode" "scala-mode" "scheme-mode" "sh-mode" "shell-mode" "sql-mode" "swift-mode" "tcl-mode" "tex-mode" "tuareg-mode" "verilog-mode" "vhdl-mode" "web-mode"
+)
+  "Known Emacs modes")
+
+(defun avsait--determine-language-mode ()
+  "Returns the corresponding Emacs mode, if existing."
+  (interactive)
+  (and (search-forward "```" nil t 1)
+       (looking-at "[[:graph:]]+")
+       (member (concat (match-string-no-properties 0) "-mode") known-emacs-modes))
+  (match-string-no-properties 0) "-mode")
+
+
+(defun avsait--result-in-language-mode (&optional orig this-mode)
+  "If some code was request, store the result in the respective mode."
+  (interactive "*")
+  (let ((orig (or orig (point-min)))
+        this-mode)
+    (goto-char orig)
+    (if (and (search-forward "```" nil t 1)
+             (looking-at "[[:graph:]]+")
+             (member (match-string-no-properties 0) known-emacs-modes))
+        (progn
+          (setq this-mode (concat (match-string-no-properties 0) "-mode"))
+          (funcall (car (read-from-string this-mode)))
+          (comment-region (point-min) (- (line-beginning-position) 1))
+          (delete-region (line-beginning-position) (line-end-position))
+          (and (search-forward "```" nil t 1)
+               (progn (delete-region (match-beginning 0) (match-end 0))
+                      (setq orig (point))))
+          (avsait--result-in-language-mode orig))
+      (comment-region orig (point-max)))))
+
+(defun avsait-pretty-print ()
   "Cleanup the output-buffer."
   (interactive "*")
   (let (erg previous-line-was-empty)
@@ -114,19 +155,20 @@ An alternative to ‘M-x customize-variable ...’ "
     (save-excursion
       (while (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
         (setq erg (match-string-no-properties 1))
-        (when (member erg (list "haskell"))
-          (replace-match "```")
-          (delete-horizontal-space)
-          (newline 1)
-          (insert erg)
-          (newline 1)
-          (setq erg nil))))
-    (save-excursion
-      (while (re-search-forward "``` " nil t 1)
-        (replace-match "")
-        (newline 1)
-        (insert "```")
-        (newline 1)))
+        ;; (when (member erg (list "haskell"))
+        ;;   (replace-match "```")
+        ;;   (delete-horizontal-space)
+        ;;   (newline 1)
+        ;;   (insert erg)
+        ;;   (newline 1)
+        ;;   (setq erg nil))
+        ))
+    ;; (save-excursion
+    ;;   (while (re-search-forward "``` " nil t 1)
+    ;;     (replace-match "")
+    ;;     (newline 1)
+    ;;     (insert "```")
+    ;;     (newline 1)))
     (save-excursion
       (while (re-search-forward "\\\\u003[ce]" nil t 1)
         (replace-match ">")))
@@ -164,10 +206,6 @@ An alternative to ‘M-x customize-variable ...’ "
       (while (re-search-forward "^ *[0-9]+\\." nil t 1)
         (fill-paragraph)
         (forward-line 2)))
-    ;; (save-excursion (while (not (eobp))
-    ;;                   (unless (eq (char-after) ?*)(fill-paragraph))
-    ;;                   (forward-paragraph)
-    ;;                   (skip-chars-forward " \t\r\n\f")))
     (save-excursion
       (goto-char (point-min))
       (while (not (eobp))
@@ -178,6 +216,63 @@ An alternative to ‘M-x customize-variable ...’ "
               (forward-line 1))
           (setq previous-line-was-empty nil)
           (forward-line 1))))))
+
+(defun avsait-read-input-from-current-file ()
+  "Read input form file of current buffer. "
+  (interactive)
+  ;; (let ((old-avsait-input-file avsait-input-file))
+  (setq avsait-input-file (buffer-file-name)))
+;; )
+
+(defun ending-according-to-language (output-buffer)
+  ""
+  (interactive
+   (list (current-buffer)))
+  (with-current-buffer output-buffer
+    (goto-char (point-min))
+    (when (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
+        (pcase  (match-string-no-properties 1)
+          ("ada" ".ada")
+          ("assembly" ".asm")
+          ("awk" ".awk")
+          ("c" ".c")
+          ("c++" ".cpp")
+          ("clojure" ".clj")
+          ("common" ".lisp")
+          ("css" ".css")
+          ("erlang" ".erl")
+          ("forth" ".f")
+          ("fortran" ".f90")
+          ("go" ".go")
+          ("haskell" ".hs")
+          ("html" ".html")
+          ("java" ".java")
+          ("javascript" ".js")
+          ("julia" ".jl")
+          ("latex" ".tex")
+          ("lisp" ".el")
+          ("lua" ".lua")
+          ("makefile" ".mak")
+          ("matlab" ".m")
+          ("objective-c" ".h")
+          ("ocaml" ".ml")
+          ("php" ".php")
+          ("perl" ".pl")
+          ("python" ".py")
+          ("r" ".r")
+          ("ruby" ".rb")
+          ("rust" ".rs")
+          ("scala" ".scala")
+          ("scheme" ".scm")
+          ("shell" ".sh")
+          ("sql" ".zsh")
+          ("swift" ".sql")
+          ("tcl" ".swift")
+          ("tex" ".tcl")
+          ("vh-----dl" ".tex")
+          ("verilog" ".vhd")
+          ("vue.js" ".v")
+          ))))
 
 (defun avsait (arg api key &optional model text)
   "Query LLM.
@@ -197,22 +292,23 @@ TEXT: the query when called from a program"
                      (;; current-buffer
                       (eq 4 (prefix-numeric-value arg))
                       (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))
-                      ((and (or avsait-read-from-input-file-p (eq 4 (prefix-numeric-value arg)))
-                            (not (string= "" avsait-input-file)))
-                       (progn (find-file (expand-file-name avsait-input-file))
-                              (with-current-buffer (get-file-buffer avsait-input-file)
-                              (message "%s" (get-file-buffer avsait-input-file))
-                                ;; (message "%s" (buffer-name avsait-input-file)))
-                              (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))))
+                     ((and (or avsait-read-from-input-file-p (eq 4 (prefix-numeric-value arg)))
+                           (not (string= "" avsait-input-file)))
+                      (progn (find-file (expand-file-name avsait-input-file))
+                             (with-current-buffer (get-file-buffer avsait-input-file)
+                               (message "%s" (get-file-buffer avsait-input-file))
+                               ;; (message "%s" (buffer-name avsait-input-file)))
+                               (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))))
                      (t (read-from-minibuffer "Eingabe: " (car kill-ring)))))
-         (modes (or model "llama-3.3-70b-versatile"))
+         (model (or model "llama-3.3-70b-versatile"))
          (start (if (string-match " " text)
                     (+ 1 (string-match " " text))
                   0))
          (outbut-buffer-init-text (capitalize (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0)))))
          (output-buffer (if (not (string= "" avsait-output-buffer))
                             avsait-output-buffer
-                          (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text"))))
+                          (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text")))
+         erg)
     (shell-command (concat "curl " api " \
 -H \"Content-Type: application/json\" \
 -H \"Authorization: Bearer " key "\" \
@@ -229,10 +325,18 @@ TEXT: the query when called from a program"
     (delete-other-windows)
     (when
         avsait-debug-p
-      (write-file (expand-file-name (concat avsait-output-dir "/debug_" output-buffer))))
-    (unless avsait-no-cleanup-p
-      (avsait-cleanup))
-    (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer)))
+      (save-excursion
+        (with-current-buffer
+            (set-buffer (get-buffer-create (concat "/debug_" output-buffer)))
+          (switch-to-buffer (current-buffer))
+          (insert-buffer output-buffer)
+          (write-file (expand-file-name (concat avsait-output-dir "/debug_" output-buffer))))))
+    (when avsait-pretty-print-p
+      (when (setq erg (ending-according-to-language output-buffer))
+        ;; (setq output-buffer (concat (buffer-name output-buffer) erg))
+        )
+      (avsait-pretty-print))
+    (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer erg)))
     (switch-to-buffer output-buffer)))
 
 (provide 'avsait)

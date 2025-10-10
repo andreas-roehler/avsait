@@ -54,12 +54,12 @@ Default is nil."
   :tag "avsait-read-from-input-file-p"
   :group 'avsait)
 
-(defcustom avsait-no-cleanup-p nil
+(defcustom avsait-pretty-print-p t
   "If the output should be nicely formatted.
 
-Default is nil"
+Default is t"
   :type 'boolean
-  :tag "avsait-no-cleanup-p"
+  :tag "avsait-pretty-print-p"
   :safe 'booleanp
   :group 'avsait)
 
@@ -84,7 +84,7 @@ Default is nil"
 ;; (defvar avsait-debug-p nil
 ;;   "Debug.")
 
-(defalias 'gq 'groq)
+(defalias 'gq 'groq4)
 (defun groq (&optional arg)
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
