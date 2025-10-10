@@ -25,6 +25,7 @@ jobs:
               --eval "(message (emacs-version))" \
               --eval "(message (getenv \"PWD\"))" \
               --eval "(add-to-list 'load-path (getenv \"PWD\"))" \
+              --eval "(load \"~/avsait/avsait.el\")" \
               --eval "(load \"~/avsait/avsait-setup-ert-tests.el\")" \
               --eval "(load \"~/avsait/test/avsait-ert-pretty-print-tests.el\")" \
               --eval "(sit-for 1)" \
