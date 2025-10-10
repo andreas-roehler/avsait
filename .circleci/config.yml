@@ -15,6 +15,7 @@ jobs:
       - run:
           name: Umgebung
           command: |
+            IFLOCAL=1
             echo "Gebe Umgebung aus"
             ls -lart
       - run:

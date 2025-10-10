@@ -41,7 +41,8 @@
 
 (require 'avsait-api)
 (require 'avsait-config)
-(require 'avsait-secrets)
+(when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
+  (require 'avsait-secrets))
 
 (defun avsait-toggle-pretty-print ()
   "Toggle use of electric colon for Python code."
