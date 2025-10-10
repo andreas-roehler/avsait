@@ -1,4 +1,4 @@
-[![CircleCI avsait](https://circleci.com/gh/avsait/avsait.svg?style=svg)](https://app.circleci.com/pipelines/gh/avsait/avsait)
+[![CircleCI avsait](https://circleci.com/gh/andreas-roehler/avsait.svg?style=svg)](https://app.circleci.com/pipelines/github/andreas-roehler/avsait)
 
 Querying LLMs from Emacs
 
