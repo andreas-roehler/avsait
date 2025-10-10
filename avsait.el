@@ -21,7 +21,12 @@
 ;; Output gets an unique name related to a buffer, that way subsequent answers don't get lost.
 ;; By default output is stored in customizable ‘avsait-output-dir’
 
-;; Usage: Define your query-commands providing arguments as string like this:
+;; Usage:
+
+;; Rename ‘avsait-secrets-example.el’ to ‘avsait-secrets.el’ and edit
+;; the required token according to your provider.
+
+;; Define your query-commands providing arguments as string like this:
 
 ;; (defun my_query (arg)
 ;;   "With \\[universal-argument] read from input-file, not from minibuffer.
@@ -36,6 +41,10 @@
 ;;         (key YOUR_ACCESS-TOKEN)
 ;;         (model YOUR_LLM-MODEL-TO-USE))
 ;;     (avsait arg api key model text)))
+
+;; According to customizable value of ‘avsait-read-from-input-file-p’
+;; user gets prompted or input-file is taken. There is a command
+;; ‘avsait-toggle-read-from-input-file’ switching that the fly.
 
 ;;; Code:
 
@@ -121,7 +130,6 @@ An alternative to ‘M-x customize-variable ...’ "
        (looking-at "[[:graph:]]+")
        (member (concat (match-string-no-properties 0) "-mode") known-emacs-modes))
   (match-string-no-properties 0) "-mode")
-
 
 (defun avsait--result-in-language-mode (&optional orig this-mode)
   "If some code was request, store the result in the respective mode."
