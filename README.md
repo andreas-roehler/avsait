@@ -1,3 +1,5 @@
+[![CircleCI avsait](https://circleci.com/gh/avsait/avsait.svg?style=svg)](https://app.circleci.com/pipelines/gh/avsait/avsait)
+
 Querying LLMs from Emacs
 
 Check for command ‘avsait’:
