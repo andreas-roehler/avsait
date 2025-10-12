@@ -286,7 +286,17 @@ An alternative to ‘M-x customize-variable ...’ "
           ("vue.js" ".v")
           ))))
 
-(defun avsait (arg api key &optional model text)
+(defun avsait--write-debug-output (output-buffer)
+  ""
+  (save-excursion
+        (with-current-buffer
+            (set-buffer (get-buffer-create (concat "/debug_" output-buffer)))
+          (switch-to-buffer (current-buffer))
+          (insert-buffer output-buffer)
+          (write-file (expand-file-name (concat avsait-output-dir "/debug_" output-buffer))))
+        ))
+
+(defun avsait (arg api key &optional model text test)
   "Query LLM.
 Argument ARG With \\[universal-argument] read from input-file, not from minibuffer.
 
@@ -300,7 +310,8 @@ TEXT: the query when called from a program"
   (interactive "P")
   ;; (unless (eq 4 (prefix-numeric-value arg))
   ;; (find-file avsait-input-file))
-  (let* ((text (cond (text)
+  (let* ((text (cond (test)
+                     (text)
                      (;; current-buffer
                       (eq 4 (prefix-numeric-value arg))
                       (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))
@@ -316,12 +327,14 @@ TEXT: the query when called from a program"
          (start (if (string-match " " text)
                     (+ 1 (string-match " " text))
                   0))
-         (outbut-buffer-init-text (capitalize (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0)))))
-         (output-buffer (if (not (string= "" avsait-output-buffer))
+         (outbut-buffer-init-text (or test (capitalize (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0))))))
+         (output-buffer (or test (if (not (string= "" avsait-output-buffer))
                             avsait-output-buffer
-                          (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text")))
+                            ;; (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text")
+                            (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_")))
+                            )))
          erg)
-    (shell-command (concat "curl " api " \
+    (or test (shell-command (concat "curl " api " \
 -H \"Content-Type: application/json\" \
 -H \"Authorization: Bearer " key "\" \
 -d '{
@@ -331,25 +344,18 @@ TEXT: the query when called from a program"
     \"content\": \"" text ".\"
 }]
 }'
-") output-buffer)
+") output-buffer))
     ;; (sit-for 1)
     (set-buffer output-buffer)
     (delete-other-windows)
     (when
         avsait-debug-p
-      (save-excursion
-        (with-current-buffer
-            (set-buffer (get-buffer-create (concat "/debug_" output-buffer)))
-          (switch-to-buffer (current-buffer))
-          (insert-buffer output-buffer)
-          (write-file (expand-file-name (concat avsait-output-dir "/debug_" output-buffer))))))
+      (avsait--write-debug-output output-buffer))
     (when avsait-pretty-print-p
-      (when (setq erg (ending-according-to-language output-buffer))
-        ;; (setq output-buffer (concat (buffer-name output-buffer) erg))
-        )
+      (when (setq erg (ending-according-to-language output-buffer)))
       (avsait-pretty-print))
-    (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer erg)))
-    (switch-to-buffer output-buffer)))
+    (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer (or erg ".text"))))
+    (switch-to-buffer (concat output-buffer (or erg ".text")))))
 
 (provide 'avsait)
 ;;; avsait.el ends here
