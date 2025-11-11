@@ -91,6 +91,7 @@ Sets ‘avsait-read-from-input-file-p’ and ‘avsait-input-file’"
   (interactive)
   (setq avsait-read-from-input-file-p t)
   (setq avsait-input-file (buffer-file-name))
+  (when avsait-verbose-p (message "avsait reads from current file: %s" (file-name-nondirectory avsait-input-file)))
   )
 
 (defun avsait-toggle-debug-p ()
@@ -359,10 +360,9 @@ TEXT: the query when called from a program"
                   0))
          (outbut-buffer-init-text (or test (capitalize (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0))))))
          (output-buffer (or test (if (not (string= "" avsait-output-buffer))
-                            avsait-output-buffer
-                            ;; (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text")
-                            (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_")))
-                            )))
+                                     avsait-output-buffer
+                                   ;; (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text")
+                                   (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))))))
          erg)
     (or test (shell-command (concat "curl " api " \
 -H \"Content-Type: application/json\" \
@@ -384,7 +384,7 @@ TEXT: the query when called from a program"
     (when avsait-pretty-print-p
       (avsait-pretty-print)
       (when (setq erg (ending-according-to-language output-buffer)))
-      )
+      (avsait--result-in-language-mode))
     (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer (or erg ".text"))))
     (switch-to-buffer (concat output-buffer (or erg ".text")))))
 
