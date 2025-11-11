@@ -84,10 +84,7 @@ Default is nil"
 ;; (defvar avsait-debug-p nil
 ;;   "Debug.")
 
-(defalias 'gq 'groq4)
-(defun groq (&optional arg)
-  (interactive "P")
-  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
+;; moonshotai/kimi-k2-instruct-0905
 
 (defalias 'gq4 'groq4)
 (defun groq4 (&optional arg)
@@ -108,6 +105,17 @@ Default is nil"
   "Call Groq with DeepSeek and read prompts from file."
   (interactive)
   (avsait '(4) "https://api.groq.com/openai/v1/chat/completions -s" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b"))
+
+
+(defalias 'gms 'kimi-k2)
+(defun kimi-k2 (&optional arg)
+  (interactive "P")
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "moonshotai/kimi-k2-instruct-0905"))
+
+(defalias 'gq 'groq4)
+(defun groq (&optional arg)
+  (interactive "P")
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
 
 (provide 'avsait-config)
 ;;; avsait-config.el ends here

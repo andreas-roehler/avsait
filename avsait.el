@@ -50,6 +50,19 @@
 
 (require 'avsait-api)
 (require 'avsait-config)
+
+(defgroup avsait nil
+  "Question LLMs" ;; generic mark
+  :group 'convenience
+  :prefix "avsait-")
+
+(defcustom avsait-allow-special-edits-p nil
+ "If true, admonitions by the model are deleted from the response.
+
+Default is nil"
+ :type 'boolean
+ :group 'avsait)
+
 (when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
   (require 'avsait-secrets))
 
@@ -77,7 +90,8 @@
 Sets ‘avsait-read-from-input-file-p’ and ‘avsait-input-file’"
   (interactive)
   (setq avsait-read-from-input-file-p t)
-  (setq avsait-input-file (buffer-file-name)))
+  (setq avsait-input-file (buffer-file-name))
+  )
 
 (defun avsait-toggle-debug-p ()
   "Toggle ‘avsait-debug-p’ value."
@@ -119,7 +133,7 @@ An alternative to ‘M-x customize-variable ...’ "
           (when (yes-or-no-p "Write custom-file?") (write-file custom-file)))
       (error (concat "Can't see " custom-file)))))
 
-(defvar known-emacs-modes (list "ada-mode" "asm-mode" "awk-mode" "cc-mode" "clojure-mode" "css-mode" "emacs-lisp" "erlang-mode" "forth-mode" "fortran-mode" "go-mode" "haskell-mode" "html-mode" "java-mode" "js-mode" "julia-mode" "latex-mode" "lisp-mode" "lua-mode" "makefile-mode" "matlab-mode" "perl-mode" "php-mode" "python" "python-mode" "r-mode" "ruby-mode" "rust-mode" "scala-mode" "scheme-mode" "sh-mode" "shell-mode" "sql-mode" "swift-mode" "tcl-mode" "tex-mode" "tuareg-mode" "verilog-mode" "vhdl-mode" "web-mode"
+(defvar known-emacs-modes (list "ada-mode" "asm-mode" "awk-mode" "cc-mode" "clojure-mode" "css-mode" "elisp" "emacs-lisp" "erlang-mode" "forth-mode" "fortran-mode" "go-mode" "haskell-mode" "html-mode" "java-mode" "js-mode" "julia-mode" "latex-mode" "lisp-mode" "lua-mode" "makefile-mode" "matlab-mode" "perl-mode" "php-mode" "python" "python-mode" "r-mode" "ruby-mode" "rust-mode" "scala-mode" "scheme-mode" "sh-mode" "shell-mode" "sql-mode" "swift-mode" "tcl-mode" "tex-mode" "tuareg-mode" "verilog-mode" "vhdl-mode" "web-mode"
 )
   "Known Emacs modes")
 
@@ -134,22 +148,43 @@ An alternative to ‘M-x customize-variable ...’ "
 (defun avsait--result-in-language-mode (&optional orig this-mode)
   "If some code was request, store the result in the respective mode."
   (interactive "*")
-  (let ((orig (or orig (point-min)))
-        this-mode)
-    (goto-char orig)
-    (if (and (search-forward "```" nil t 1)
-             (looking-at "[[:graph:]]+")
-             (member (match-string-no-properties 0) known-emacs-modes))
-        (progn
-          (setq this-mode (concat (match-string-no-properties 0) "-mode"))
-          (funcall (car (read-from-string this-mode)))
-          (comment-region (point-min) (- (line-beginning-position) 1))
-          (delete-region (line-beginning-position) (line-end-position))
-          (and (search-forward "```" nil t 1)
-               (progn (delete-region (match-beginning 0) (match-end 0))
-                      (setq orig (point))))
-          (avsait--result-in-language-mode orig))
-      (comment-region orig (point-max)))))
+  (unless (eobp)
+    (let ((orig (or orig (point-min)))
+          this-mode erg)
+      (goto-char orig)
+      (cond ((save-excursion
+               (and (search-forward "```" nil 'move 1)
+                    (looking-at "\\([[:graph:]]+\\)\\(.*\\)")
+                    ;; (looking-at "\\([^\\]+\\)\\(.*\\)$")
+                    (setq erg (match-end 1))
+                    (or
+                     (member (concat (match-string-no-properties 1) "-mode") known-emacs-modes)
+                     (member (match-string-no-properties 1) known-emacs-modes)
+                     )
+                    ))
+             (setq this-mode (pcase (match-string-no-properties 1)
+                               ("elisp" "emacs-lisp-mode")
+                               (_ (concat (match-string-no-properties 1) "-mode"))))
+             (funcall (car (read-from-string this-mode)))
+             ;; (save-excursion (goto-char erg) (split-line))
+             (goto-char erg) (skip-chars-forward " \t\r\n\f") (newline 1)
+             (comment-region orig (point))
+             (avsait--result-in-language-mode (point)))
+            ((and (search-forward "```" nil 'move 1)
+                  (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)")))
+             ;; (delete-region (match-beginning 0) (match-end 0))
+             (comment-region (match-beginning 0) (match-end 0))
+             (avsait--result-in-language-mode (point)))
+            (t (comment-region orig (point-max)))))))
+
+(defun avsait--special-edits ()
+  (when (looking-at "{\"id\":.+\"content\":\"")
+    (delete-region (match-beginning 0) (match-end 0)))
+  (save-excursion (when (search-forward "\"},\"logprobs\"" nil t 1)
+                    (delete-region (match-beginning 0) (point-max))))
+  (save-excursion (when (re-search-forward "^Es ist wichtig, dass " nil t 1)
+                    (delete-region (match-beginning 0) (progn (goto-char (match-end 0))(skip-chars-forward "^.")(+ (point) 1)))))
+  )
 
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
@@ -190,25 +225,19 @@ An alternative to ‘M-x customize-variable ...’ "
     (save-excursion
       (while (search-forward "\\\\" nil t 1)
         (delete-char -1)(forward-char 1)))
-    (when (looking-at "{\"id\":.+\"content\":\"")
-      (delete-region (match-beginning 0) (match-end 0)))
     (save-excursion (while (search-forward "\\\""nil t 1)
                       (replace-match "\"")))
     (save-excursion (while (search-forward "**"nil t 1)
                       (replace-match "")))
-    (save-excursion (while (re-search-forward "\\/\$"nil t 1)
+    (save-excursion (while (re-search-forward "\\/$"nil t 1)
                       (replace-match "")))
-    ;; (save-excursion (while (re-search-forward "\\\\n\\|\\\\t"nil t 1)
-    ;;                   (delete-char -2)
-    ;;                   (newline 1)))
-    (save-excursion (when (search-forward "\"},\"logprobs\"" nil t 1)
-                      (delete-region (match-beginning 0) (point-max))))
     (save-excursion (while (and (not (eobp)) (re-search-forward "$" nil t 1)(eolp))
                       ;; (sit-for 0.1)
                       (when (eq (char-before) 92)
                         ;; (sit-for 0.1)
                         (delete-char -1))
                       (unless (eobp) (forward-line 1))))
+    (when avsait-allow-special-edits-p (avsait--special-edits))
     (save-excursion
       (while (re-search-forward "^ *[0-9]+\\." nil t 1)
         (beginning-of-line)
@@ -252,6 +281,7 @@ An alternative to ‘M-x customize-variable ...’ "
           ("clojure" ".clj")
           ("common" ".lisp")
           ("css" ".css")
+          ("elisp" ".el")
           ("erlang" ".erl")
           ("forth" ".f")
           ("fortran" ".f90")
@@ -352,8 +382,9 @@ TEXT: the query when called from a program"
         avsait-debug-p
       (avsait--write-debug-output output-buffer))
     (when avsait-pretty-print-p
+      (avsait-pretty-print)
       (when (setq erg (ending-according-to-language output-buffer)))
-      (avsait-pretty-print))
+      )
     (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer (or erg ".text"))))
     (switch-to-buffer (concat output-buffer (or erg ".text")))))
 
