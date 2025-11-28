@@ -66,6 +66,44 @@ Default is nil"
 (when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
   (require 'avsait-secrets))
 
+(defun avsait-just-one-empty-line (&optional beg end)
+  "Delete consecutive empty lines, retain just one.
+
+Works on region if active.
+Accepts optional arguments BEG END to specify a region"
+  (interactive "*")
+  (let ((beg (cond (beg)
+		   ((region-active-p)
+		    (region-beginning))
+		   (t (point-min))))
+	(end (copy-marker
+              (cond (end)
+		    ((region-active-p)
+		     (region-end))
+		    (t (point-max)))))
+        previous-line-was-empty)
+    (goto-char beg)
+    (while (not (eobp))
+      (if (looking-at "\\([ \t]*\\)$")
+          (if previous-line-was-empty
+              (delete-char 1)
+            (setq previous-line-was-empty t)
+            (forward-line 1))
+        (setq previous-line-was-empty nil)
+        (forward-line 1)))))
+
+(defun avsait-pretty-start-end-spaces ()
+  ""
+  (interactive "*")
+  (save-excursion
+    (goto-char (point-min))
+    (let ((orig (point)))
+      (when (< 0 (abs (skip-chars-forward " \t\r\n\f")))
+        (delete-region orig (point) ))
+      (goto-char (point-max))
+      (when (< 0 (abs (skip-chars-backward " \t\r\n\f")))
+        (delete-region (point-max) (point))))))
+
 (defun avsait-toggle-pretty-print ()
   "Toggle use of electric colon for Python code."
   (interactive)
@@ -84,7 +122,14 @@ Default is nil"
   (setq avsait-read-from-input-file-p (not avsait-read-from-input-file-p))
   (when (called-interactively-p 'interactive) (message "avsait-read-from-input-file-p: %s" avsait-read-from-input-file-p)))
 
-(defun avsait-read-current-as-input-file()
+;; (defun avsait-read-input-from-current-file ()
+;;   "Read input form file of current buffer. "
+;;   (interactive)
+;;   ;; (let ((old-avsait-input-file avsait-input-file))
+;;   (setq avsait-input-file (buffer-file-name)))
+
+(defalias 'avsait-read-input-from-current-file 'avsait-read-current-as-input-file)
+(defun avsait-read-current-as-input-file ()
   "Next avsait will read the current file as input-file.
 
 Sets ‘avsait-read-from-input-file-p’ and ‘avsait-input-file’"
@@ -146,37 +191,56 @@ An alternative to ‘M-x customize-variable ...’ "
        (member (concat (match-string-no-properties 0) "-mode") known-emacs-modes))
   (match-string-no-properties 0) "-mode")
 
-(defun avsait--result-in-language-mode (&optional orig this-mode)
+(defun avsait--result-in-language-mode (&optional orig this-mode first second)
   "If some code was request, store the result in the respective mode."
   (interactive "*")
   (unless (eobp)
     (let ((orig (or orig (point-min)))
-          this-mode erg)
+          (this-mode this-mode)
+          (first first)
+          (second second)
+          erg)
       (goto-char orig)
-      (cond ((save-excursion
-               (and (search-forward "```" nil 'move 1)
-                    (looking-at "\\([[:graph:]]+\\)\\(.*\\)")
-                    ;; (looking-at "\\([^\\]+\\)\\(.*\\)$")
-                    (setq erg (match-end 1))
-                    (or
-                     (member (concat (match-string-no-properties 1) "-mode") known-emacs-modes)
-                     (member (match-string-no-properties 1) known-emacs-modes)
-                     )
-                    ))
+      (cond (first
+             (goto-char (point-min))
+             (comment-region
+              (and (setq erg (re-search-forward "^```" nil 'move 1))
+                   ;; match the closing triple
+                   ;; (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)"))
+                   (match-beginning 0))
+              ;; at the closing
+              (and (or (and (re-search-forward "^```" nil 'move 1)
+                            ;; match possible new opening triple
+                            ;; (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)"))
+                            ;; (match-end 0)
+                            (line-end-position)
+                            )
+                       (point-max)))
+              )
+             (avsait--result-in-language-mode (point) this-mode first second))
+            ;; (t (comment-region orig (point-max)))
+            (;;(save-excursion
+             (and (re-search-forward "^```" nil 'move 1)
+                  (looking-at "\\([[:graph:]]+\\)\\(.*\\)")
+                  (setq erg (match-end 1))
+                  (or
+                   (member (concat (match-string-no-properties 1) "-mode") known-emacs-modes)
+                   (member (match-string-no-properties 1) known-emacs-modes)))
+             ;; )
              (setq this-mode (pcase (match-string-no-properties 1)
                                ("elisp" "emacs-lisp-mode")
                                (_ (concat (match-string-no-properties 1) "-mode"))))
              (funcall (car (read-from-string this-mode)))
-             ;; (save-excursion (goto-char erg) (split-line))
              (goto-char erg) (skip-chars-forward " \t\r\n\f") (newline 1)
              (comment-region orig (point))
-             (avsait--result-in-language-mode (point)))
-            ((and (search-forward "```" nil 'move 1)
-                  (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)")))
-             ;; (delete-region (match-beginning 0) (match-end 0))
-             (comment-region (match-beginning 0) (match-end 0))
-             (avsait--result-in-language-mode (point)))
-            (t (comment-region orig (point-max)))))))
+             (setq first t)
+             (avsait--result-in-language-mode (point) this-mode first second))
+            ;; ((and (re-search-forward "^```" nil 'move 1)
+            ;;       (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)")))
+            ;;  (comment-region (match-beginning 0) (match-end 0))
+            ;;  (avsait--result-in-language-mode (point) this-mode))
+            ;; (t (comment-region orig (point-max)))
+            ))))
 
 (defun avsait--special-edits ()
   (when (looking-at "{\"id\":.+\"content\":\"")
@@ -187,57 +251,126 @@ An alternative to ‘M-x customize-variable ...’ "
                     (delete-region (match-beginning 0) (progn (goto-char (match-end 0))(skip-chars-forward "^.")(+ (point) 1)))))
   )
 
+(defun avsait-pretty-print--newlines-when-nest ()
+  (interactive "*")
+  (let ((orig (point)))
+    (save-excursion
+      (while (progn (ignore-errors (down-list))
+                    (< orig (point)))
+        (save-excursion
+          (backward-char)
+          (forward-sexp)
+          (newline 1))
+        (newline 1)
+        (setq orig (point))))))
+
+(defun avsait-pretty-print--newlines ()
+  (save-excursion
+    (while (search-forward "\\n" nil t 1)
+      (replace-match "")
+      (newline 1))))
+
+(defun avsait-pretty-print--tabs ()
+  (save-excursion
+    (while (search-forward "\\t" nil t 1)
+      (replace-match "	"))))
+
+(defun avsait-pretty-print--greater-than ()
+  (save-excursion
+    (while (re-search-forward "\\\\u003[ce]" nil t 1)
+      (replace-match ">"))))
+
+(defun avsait-pretty-print--enclosing-braces ()
+  ""
+  (interactive "*")
+  (save-excursion
+    (goto-char (point-min))
+    (when (eq (char-after) ?{)
+      (delete-char 1))
+    (when (eq (char-after) ?\")
+      (delete-char 1)
+      )
+    (goto-char (point-max))
+    (skip-chars-backward " \t\r\n\f")
+    (when (eq (char-before) ?})
+      (delete-char -1)
+      )
+    (when (eq (char-before) ?\")
+      (delete-char -1)
+      )
+    ))
+
+(defun avsait-pretty-print--i-hope ()
+  (save-excursion
+    (while (re-search-forward "I hope that helps!.+" nil t 1)
+      (replace-match ""))))
+
+(defun avsait-pretty-print--delete-backlashes ()
+  (save-excursion
+    (while (search-forward "\\\\" nil t 1)
+      (delete-char -1)(forward-char 1))))
+
+(defun avsait-pretty-print--unescape-doublequotes ()
+  (save-excursion (while (search-forward "\\\""nil t 1)
+                    (replace-match "\""))))
+
+(defun avsait-pretty-print--remove-doublestars ()
+  (save-excursion (while (search-forward "**"nil t 1)
+                    (replace-match ""))))
+
+(defun avsait-pretty-print--content ()
+  (interactive "*")
+  (save-excursion (when (search-forward "\"content\":" nil t 1)
+                    (newline 2))))
+
+(defun avsait-pretty-print--keywords ()
+  (interactive "*")
+  (save-excursion (while (re-search-forward (regexp-opt (list
+                                                         "id"
+                                                         "index"
+                                                         "logprobs"
+                                                         "role"
+                                                         "usage"
+                                                         )
+                                                        'symbols)
+                                            nil t 1)
+                    (delete-region (line-beginning-position) (line-end-position)))))
+
+(defun avsait-pretty-print--single-paren ()
+  (interactive "*")
+  (save-excursion (while (re-search-forward "^[]\\[{}]$" nil t 1)
+                    (delete-region (line-beginning-position) (line-end-position)))))
+
+(defun avsait-pretty-print--remove-backslash-at-EOL ()
+  (save-excursion (while (and (not (eobp)) (re-search-forward "$" nil t 1)(eolp))
+                    (when (eq (char-before) 92)
+                      (delete-char -1))
+                    (unless (eobp) (forward-line 1)))))
+
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
   (interactive "*")
   (let (erg previous-line-was-empty)
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
-    (save-excursion
-      (while (search-forward "\\n" nil t 1)
-        (replace-match "")
-        (newline 1)))
-    (save-excursion
-      (while (search-forward "\\t" nil t 1)
-        (replace-match "	")))
-    (save-excursion
-      (while (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
-        (setq erg (match-string-no-properties 1))
-        ;; (when (member erg (list "haskell"))
-        ;;   (replace-match "```")
-        ;;   (delete-horizontal-space)
-        ;;   (newline 1)
-        ;;   (insert erg)
-        ;;   (newline 1)
-        ;;   (setq erg nil))
-        ))
+    (avsait-pretty-print--newlines-when-nest)
+    (avsait-pretty-print--newlines)
+    (avsait-pretty-print--tabs)
     ;; (save-excursion
-    ;;   (while (re-search-forward "``` " nil t 1)
-    ;;     (replace-match "")
-    ;;     (newline 1)
-    ;;     (insert "```")
-    ;;     (newline 1)))
-    (save-excursion
-      (while (re-search-forward "\\\\u003[ce]" nil t 1)
-        (replace-match ">")))
-    (save-excursion
-      (while (re-search-forward "I hope that helps!.+" nil t 1)
-        (replace-match "")))
-    (save-excursion
-      (while (search-forward "\\\\" nil t 1)
-        (delete-char -1)(forward-char 1)))
-    (save-excursion (while (search-forward "\\\""nil t 1)
-                      (replace-match "\"")))
-    (save-excursion (while (search-forward "**"nil t 1)
-                      (replace-match "")))
-    (save-excursion (while (re-search-forward "\\/$"nil t 1)
-                      (replace-match "")))
-    (save-excursion (while (and (not (eobp)) (re-search-forward "$" nil t 1)(eolp))
-                      ;; (sit-for 0.1)
-                      (when (eq (char-before) 92)
-                        ;; (sit-for 0.1)
-                        (delete-char -1))
-                      (unless (eobp) (forward-line 1))))
+    ;;   (while (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
+    ;;     (setq erg (match-string-no-properties 1))))
+    (avsait-pretty-print--greater-than)
+    (avsait-pretty-print--i-hope)
+    (avsait-pretty-print--delete-backlashes)
+    (avsait-pretty-print--unescape-doublequotes)
+    (avsait-pretty-print--remove-doublestars)
+    (avsait-pretty-print--remove-backslash-at-EOL)
+    (avsait-pretty-print--content)
+    (avsait-pretty-print--keywords)
+    (avsait-pretty-print--single-paren)
+    (avsait-just-one-empty-line)
+    (avsait-pretty-start-end-spaces)
+    (avsait-pretty-print--enclosing-braces)
     (when avsait-allow-special-edits-p (avsait--special-edits))
     (save-excursion
       (while (re-search-forward "^ *[0-9]+\\." nil t 1)
@@ -258,13 +391,6 @@ An alternative to ‘M-x customize-variable ...’ "
               (forward-line 1))
           (setq previous-line-was-empty nil)
           (forward-line 1))))))
-
-(defun avsait-read-input-from-current-file ()
-  "Read input form file of current buffer. "
-  (interactive)
-  ;; (let ((old-avsait-input-file avsait-input-file))
-  (setq avsait-input-file (buffer-file-name)))
-;; )
 
 (defun ending-according-to-language (output-buffer)
   ""
@@ -383,8 +509,8 @@ TEXT: the query when called from a program"
       (avsait--write-debug-output output-buffer))
     (when avsait-pretty-print-p
       (avsait-pretty-print)
-      (when (setq erg (ending-according-to-language output-buffer)))
-      (avsait--result-in-language-mode))
+      (when (setq erg (ending-according-to-language output-buffer))
+        (avsait--result-in-language-mode)))
     (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer (or erg ".text"))))
     (switch-to-buffer (concat output-buffer (or erg ".text")))))
 

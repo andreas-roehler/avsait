@@ -117,5 +117,7 @@ Default is nil"
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
 
+;; (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile" nil nil "/home/speck/arbeit/emacs-lisp/operator-mode/test/rueckstrich-tests-anlegen.text"))
+
 (provide 'avsait-config)
 ;;; avsait-config.el ends here
