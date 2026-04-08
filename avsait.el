@@ -69,6 +69,7 @@ Default is nil"
 (defun avsait-format-paragraphs ()
   (interactive "*")
   (goto-char (point-min))
+  (fill-paragraph)
   (while (re-search-forward "^*" nil t 1)
     (when (search-forward ":" (line-end-position) 1)
       (newline 2)
@@ -76,6 +77,8 @@ Default is nil"
       (indent-according-to-mode)
       (fill-paragraph)))
   (goto-char (point-min))
+  (while (re-search-forward "^-" nil t 1)
+    (fill-paragraph))
   (while (prog1 (not (eobp)) (forward-paragraph))
       (save-excursion
 	(skip-chars-backward " \t\r\n\f")
