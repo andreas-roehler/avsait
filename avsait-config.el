@@ -96,12 +96,29 @@ Default is nil"
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b"))
 
+;; curl -X POST https://api.deepseek.com/v1/chat/completions \
+;;   -H "Content-Type: application/json" \
+;;   -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
+;;   -d '{
+;;     "model": "deepseek-chat",
+;;     "messages": [
+;;       {"role": "system", "content": "You are a helpful assistant."},
+;;       {"role": "user", "content": "Explain what a bash shell is in one sentence."}
+;;     ],
+;;     "stream": false
+;;   }'
+
+(defun deepSeek (&optional arg)
+  (interactive "P")
+  ;; (avsait arg "https://api.deepseek.com/v1/chat/completions" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b" nil nil {"role": "system", "content": "You are a helpful assistant."})
+  (avsait arg "https://api.deepseek.com/v1/chat/completions -s" deepSeek_pw))
+
 ;; DeepSeek-R1-Distill-Llama-70b
 (defun chatGPT (&optional arg)
   (interactive "P")
   (avsait arg "https://chatgpt.com/" chatGPT_pw))
 
-(defun groqDeepSeedDatei()
+(defun groqDeepSeedDatei ()
   "Call Groq with DeepSeek and read prompts from file."
   (interactive)
   (avsait '(4) "https://api.groq.com/openai/v1/chat/completions -s" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b"))
@@ -112,10 +129,15 @@ Default is nil"
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "moonshotai/kimi-k2-instruct-0905"))
 
-(defalias 'gq 'groq4)
+(defalias 'gq 'groq)
 (defun groq (&optional arg)
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
+
+(defalias 'gb 'groq-compound)
+(defun groq-compound (&optional arg)
+  (interactive "P")
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile" "compound-beta"))
 
 ;; (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile" nil nil "/home/speck/arbeit/emacs-lisp/operator-mode/test/rueckstrich-tests-anlegen.text"))
 
