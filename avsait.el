@@ -69,7 +69,14 @@ Default is nil"
 (defun avsait-format-paragraphs ()
   (interactive "*")
   (goto-char (point-min))
-  (fill-paragraph)
+  (let ((orig (point)))
+    (fill-paragraph)
+    (while (progn (forward-paragraph)
+                  (skip-chars-forward " \t\r\n\f")
+                  (fill-paragraph)
+                  (and (<  orig (point))
+                       (setq orig (point))))))
+  (goto-char (point-min)) 
   (while (re-search-forward "^*" nil t 1)
     (when (search-forward ":" (line-end-position) 1)
       (newline 2)
@@ -80,10 +87,9 @@ Default is nil"
   (while (re-search-forward "^-" nil t 1)
     (fill-paragraph))
   (while (prog1 (not (eobp)) (forward-paragraph))
-      (save-excursion
-	(skip-chars-backward " \t\r\n\f")
-	(fill-paragraph)))
-  )
+    (save-excursion
+      (skip-chars-backward " \t\r\n\f")
+      (fill-paragraph))))
 
 (defun avsait-just-one-empty-line (&optional beg end)
   "Delete consecutive empty lines, retain just one.
