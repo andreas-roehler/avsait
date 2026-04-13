@@ -63,8 +63,60 @@ Default is nil"
  :type 'boolean
  :group 'avsait)
 
+(defcustom avsait-format-paragraphs-p t
+  "Disable formatting paragraphs if convenient.
+
+Default is ‘t’"
+  :type 'boolean
+  :group 'avsait)
+
 (when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
   (require 'avsait-secrets))
+
+(defun avsait--leerzeile-org-kapitel ()
+  (interactive "*")
+  (goto-char (point-min))
+  (while (re-search-forward "^\\*" nil t 1)
+    (save-excursion
+      (forward-line -1)
+      (beginning-of-line)
+      (unless (or (ar-empty-line-p)(bobp))
+        (end-of-line)
+        (newline 1)))))
+
+(defun just-one-empty-line (&optional beg end)
+  "Delete consecutive empty lines, retain just one.
+
+Works on region if active.
+Accepts optional arguments BEG END to specify a region"
+  (interactive "*")
+  (let ((beg (cond (beg)
+		   ((region-active-p)
+		    (region-beginning))
+		   (t (point-min))))
+	(end (copy-marker
+              (cond (end)
+		    ((region-active-p)
+		     (region-end))
+		    (t (point-max)))))
+        previous-line-was-empty)
+    (save-excursion
+      (save-restriction
+        (narrow-to-region beg end)
+        (goto-char beg)
+        (while (not (eobp))
+          (if (looking-at "\\([ \t]*\\)$")
+              (if previous-line-was-empty
+                  (delete-char 1)
+                (setq previous-line-was-empty t)
+                (forward-line 1))
+            (setq previous-line-was-empty nil)
+            (forward-line 1)))
+        ;; (je-ein-leerzeichen-im-bereich beg end)
+	(widen))))
+  (when (eq major-mode 'org-mode)
+    (save-excursion
+      (avsait--leerzeile-org-kapitel))))
 
 (defun avsait-format-paragraphs ()
   (interactive "*")
@@ -76,7 +128,7 @@ Default is nil"
                   (fill-paragraph)
                   (and (<  orig (point))
                        (setq orig (point))))))
-  (goto-char (point-min)) 
+  (goto-char (point-min))
   (while (re-search-forward "^*" nil t 1)
     (when (search-forward ":" (line-end-position) 1)
       (newline 2)
@@ -89,7 +141,9 @@ Default is nil"
   (while (prog1 (not (eobp)) (forward-paragraph))
     (save-excursion
       (skip-chars-backward " \t\r\n\f")
-      (fill-paragraph))))
+      (fill-paragraph)))
+  (just-one-empty-line)
+  )
 
 (defun avsait-just-one-empty-line (&optional beg end)
   "Delete consecutive empty lines, retain just one.
@@ -566,8 +620,9 @@ TEXT: the query when called from a program"
       (avsait-pretty-print)
       (when (setq erg (ending-according-to-language output-buffer))
         (avsait--result-in-language-mode)))
-    (when (member major-mode (list 'text-mode 'org-mdoe))
-      (avsait-format-paragraphs))
+    (when avsait-format-paragraphs-p
+      (unless erg
+        (avsait-format-paragraphs)))
     (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer (or erg ".org"))))
     (switch-to-buffer (concat output-buffer (or erg ".org")))))
 
