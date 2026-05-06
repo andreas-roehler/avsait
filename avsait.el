@@ -264,7 +264,7 @@ An alternative to ‘M-x customize-variable ...’ "
        (member (concat (match-string-no-properties 0) "-mode") known-emacs-modes))
   (match-string-no-properties 0) "-mode")
 
-(defun avsait--ajust-templates ()
+(defun avsait--adjust-templates ()
   ""
   (interactive "*")
   (goto-char (point-min))
@@ -295,25 +295,23 @@ An alternative to ‘M-x customize-variable ...’ "
                             ;; match possible new opening triple
                             ;; (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)"))
                             ;; (match-end 0)
-                            (line-end-position)
-                            )
-                       (point-max)))
-              )
+                            (line-end-position))
+                       (point-max))))
              (avsait--result-in-language-mode (point) this-mode first second))
             ;; (t (comment-region orig (point-max)))
             ((and (re-search-forward "^```" nil 'move 1)
                   (looking-at "\\([[:graph:]]+\\)\\(.*\\)")
                   (setq erg (match-end 1))
                   (or
-                   (member (concat (match-string-no-properties 1) "-mode") known-emacs-modes)
+                   (setq this-mode (car-safe (member (concat (match-string-no-properties 1) "-mode") known-emacs-modes)))
                    (member (concat "js-" (match-string-no-properties 1) "-mode") known-emacs-modes)
                    (member (match-string-no-properties 1) known-emacs-modes)
-             (setq this-mode (pcase (match-string-no-properties 1)
-                               ("bash" "sh-mode")
-                               ("elisp" "emacs-lisp-mode")
-                               ("emacs" "emacs-lisp-mode")
-                               ("json" "js-json-mode")
-                               (_ (concat (match-string-no-properties 1) "-mode"))))))
+                   (setq this-mode (pcase (match-string-no-properties 1)
+                                     ("bash" "sh-mode")
+                                     ("elisp" "emacs-lisp-mode")
+                                     ("emacs" "emacs-lisp-mode")
+                                     ("json" "js-json-mode")
+                                     (_ (concat (match-string-no-properties 1) "-mode"))))))
              (when (and first (string= this-mode "emacs-lisp-mode"))
                (goto-char (point-min))
                (insert "-*- lexical-binding: t; -*-")(newline 1) (setq first t))
@@ -434,6 +432,39 @@ An alternative to ‘M-x customize-variable ...’ "
                       (delete-char -1))
                     (unless (eobp) (forward-line 1)))))
 
+(defun avsait--adjust-newlines ()
+  (save-excursion
+    (while (re-search-forward "^ *[0-9]+\\." nil t 1)
+      (beginning-of-line)
+      (split-line)
+      (forward-line 2))))
+
+(defun avsait--adjust-paragraphs ()
+  (save-excursion
+    (while (re-search-forward "^ *[0-9]+\\." nil t 1)
+      (fill-paragraph)
+      (forward-line 2))))
+
+(defun avsait--delete-consecutive-empty-lines ()
+  (save-excursion
+    (goto-char (point-min))
+    (while (not (eobp))
+      ;; delete consecutive empty lines
+      (if (looking-at "\\([ \t]*\\)$")
+          (if previous-line-was-empty
+              (delete-char 1)
+            (setq previous-line-was-empty t)
+            (forward-line 1))
+        (setq previous-line-was-empty nil)
+        (forward-line 1)))))
+
+(defun avsait--fix-end-of-lines ()
+  (save-excursion
+    (goto-char (point-min))
+    ;; line ends with opening paren
+    (while (re-search-forward "($" nil t 1)
+      (delete-char 1))))
+
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
   (interactive "*")
@@ -443,9 +474,6 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
     (avsait-pretty-print--tabs)
-    ;; (save-excursion
-    ;;   (while (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
-    ;;     (setq erg (match-string-no-properties 1))))
     (avsait-pretty-print--greater-than)
     (avsait-pretty-print--i-hope)
     (avsait-pretty-print--delete-backlashes)
@@ -459,34 +487,11 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait-pretty-start-end-spaces)
     (avsait-pretty-print--enclosing-braces)
     (when avsait-allow-special-edits-p (avsait--special-edits))
-    (avsait--ajust-templates)
-    (save-excursion
-      (while (re-search-forward "^ *[0-9]+\\." nil t 1)
-        (beginning-of-line)
-        (split-line)
-        (forward-line 2)))
-    (save-excursion
-      (while (re-search-forward "^ *[0-9]+\\." nil t 1)
-        (fill-paragraph)
-        (forward-line 2)))
-    (save-excursion
-      (goto-char (point-min))
-      (while (not (eobp))
-        ;; delete consecutive empty lines
-        (if (looking-at "\\([ \t]*\\)$")
-            (if previous-line-was-empty
-                (delete-char 1)
-              (setq previous-line-was-empty t)
-              (forward-line 1))
-          (setq previous-line-was-empty nil)
-          (forward-line 1))))
-    (save-excursion
-      (goto-char (point-min))
-      ;; line ends with opening paren
-      (while (re-search-forward "($" nil t 1)
-        (delete-char 1)))
-
-    ))
+    (avsait--adjust-templates)
+    (avsait--adjust-newlines)
+    (avsait--adjust-paragraphs)
+    (avsait--delete-consecutive-empty-lines)
+    (avsait--fix-end-of-lines)))
 
 (defun ending-according-to-language (output-buffer)
   ""
@@ -563,6 +568,23 @@ An alternative to ‘M-x customize-variable ...’ "
 ;;     (write-file (expand-file-name (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" "" (buffer-name (current-buffer))) (or erg ".text"))))
 ;;     (unless avsait-debug-p (shell-command (concat "rm " debugfile)))))
 
+(defun avsait--pp-and-language (output-buffer)
+  ""
+  (interactive
+   (list (current-buffer)))
+  (when avsait-pretty-print-p
+    (avsait-pretty-print)
+    (when (setq erg (ending-according-to-language output-buffer))
+      (avsait--result-in-language-mode)))
+  (when avsait-format-paragraphs-p
+    (unless erg
+      (avsait-format-paragraphs)))
+  (write-file (expand-file-name (concat avsait-output-dir "/" (buffer-name output-buffer)
+                                        (pcase major-mode
+                                          (`python-mode ".py")
+                                          (erg erg)
+                                          (_ org))))))
+
 (defun avsait (arg api key &optional model text test role)
   "Query LLM.
 Argument ARG With \\[universal-argument] read from input-file, not from minibuffer.
@@ -616,14 +638,7 @@ TEXT: the query when called from a program"
     (when
         avsait-debug-p
       (avsait--write-debug-output output-buffer))
-    (when avsait-pretty-print-p
-      (avsait-pretty-print)
-      (when (setq erg (ending-according-to-language output-buffer))
-        (avsait--result-in-language-mode)))
-    (when avsait-format-paragraphs-p
-      (unless erg
-        (avsait-format-paragraphs)))
-    (write-file (expand-file-name (concat avsait-output-dir "/" output-buffer (or erg ".org"))))
+    (avsait--pp-and-language output-buffer)
     (switch-to-buffer (concat output-buffer (or erg ".org")))))
 
 (provide 'avsait)
