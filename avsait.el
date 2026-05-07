@@ -579,7 +579,7 @@ An alternative to ‘M-x customize-variable ...’ "
   (when avsait-format-paragraphs-p
     (unless erg
       (avsait-format-paragraphs)))
-  (write-file (expand-file-name (concat avsait-output-dir "/" (buffer-name output-buffer)
+  (write-file (expand-file-name (concat avsait-output-dir "/" (replace-regexp-in-string  "^debug_" "" (buffer-name output-buffer))
                                         (pcase major-mode
                                           (`python-mode ".py")
                                           (erg erg)
