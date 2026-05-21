@@ -62,7 +62,7 @@ export TESTDIR
 
 # EMACS_TEST_VERBOSE
 
-SETUP=avsait-setup-ert-tests.el
+SETUP=$PWD/avsait-setup-ert-tests.el
 echo "\$SETUP: $SETUP"
 
 AVSAIT=$PWD/avsait.el
