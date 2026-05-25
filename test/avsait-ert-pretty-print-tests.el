@@ -55,7 +55,7 @@
 "
    'sh-mode
    'avsait-verbose-p
-   (avsait--pp-and-language (current-buffer))
+   (avsait--pp-and-language (current-buffer) t)
    (goto-char (point-min))
    (should (looking-at comment-start))))
 
@@ -66,7 +66,7 @@
 "
    'sh-mode
    'avsait-verbose-p
-   (avsait--pp-and-language (current-buffer))
+   (avsait--pp-and-language (current-buffer) t)
    (goto-char (point-min))
    (search-forward "echo")
    (end-of-line)
@@ -79,7 +79,7 @@
 "
    'sh-mode
    'avsait-verbose-p
-   (avsait--pp-and-language (current-buffer))
+   (avsait--pp-and-language (current-buffer) t)
    (goto-char (point-max))
    (skip-chars-backward " \t\r\n\f")
    (beginning-of-line)
@@ -92,7 +92,7 @@
 "
    'sh-mode
    'avsait-verbose-p
-   (avsait--pp-and-language (current-buffer))
+   (avsait--pp-and-language (current-buffer) t)
    (goto-char (point-max))
    (skip-chars-backward " \t\r\n\f")
    (beginning-of-line)

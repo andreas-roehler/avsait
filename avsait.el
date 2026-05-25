@@ -548,7 +548,7 @@ An alternative to ‘M-x customize-variable ...’ "
           (write-file (expand-file-name (concat avsait-output-dir "/debug_" output-buffer))))
         ))
 
-(defun avsait--pp-and-language (output-buffer)
+(defun avsait--pp-and-language (output-buffer &optional test)
   ""
   (interactive
    (list (current-buffer)))
@@ -561,15 +561,16 @@ An alternative to ‘M-x customize-variable ...’ "
     ;; (unless erg
     (when (member major-mode (list "(fundamental-mode" "text-mode"))
       (avsait-format-paragraphs)))
-  (write-file (expand-file-name
-               (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
-                                                                       (buffer-name (current-buffer)))
-                       ;; (concat avsait-output-dir "/" (buffer-name (current-buffer))
-                       (if erg
-                           (cadr erg)
-                         (pcase major-mode
-                           (`python-mode ".py")
-                           (_ ".org")))))))
+  (unless test
+    (write-file (expand-file-name
+                 (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
+                                                                         (buffer-name (current-buffer)))
+                         ;; (concat avsait-output-dir "/" (buffer-name (current-buffer))
+                         (if erg
+                             (cadr erg)
+                           (pcase major-mode
+                             (`python-mode ".py")
+                             (_ ".org"))))))))
 
 (defun avsait (arg api key &optional model text test role)
   "Query LLM.
