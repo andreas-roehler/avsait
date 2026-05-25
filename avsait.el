@@ -348,8 +348,8 @@ An alternative to ‘M-x customize-variable ...’ "
 
 (defun avsait-pretty-print--tabs ()
   (save-excursion
-    (while (search-forward "\\t" nil t 1)
-      (replace-match "	"))))
+    (while (search-forward "\t" nil t 1)
+      (replace-match "  "))))
 
 (defun avsait-pretty-print--greater-than ()
   (save-excursion
@@ -548,17 +548,6 @@ An alternative to ‘M-x customize-variable ...’ "
           (write-file (expand-file-name (concat avsait-output-dir "/debug_" output-buffer))))
         ))
 
-;; (defun avsait-pretty-print-current-buffer ()
-;;   "Helper command."
-;;   (interactive "*")
-;;   (let ((debugfile (buffer-name (current-buffer)))
-;;         erg)
-;;     (avsait-pretty-print)
-;;     (when (setq erg (avsait--ending-according-to-language (current-buffer)))
-;;       (avsait--result-in-language-mode))
-;;     (write-file (expand-file-name (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" "" (buffer-name (current-buffer))) (or erg ".text"))))
-;;     (unless avsait-debug-p (shell-command (concat "rm " debugfile)))))
-
 (defun avsait--pp-and-language (output-buffer)
   ""
   (interactive
@@ -570,7 +559,8 @@ An alternative to ‘M-x customize-variable ...’ "
       (avsait--result-in-language-mode erg)))
   (when avsait-format-paragraphs-p
     ;; (unless erg
-      (avsait-format-paragraphs)
+    (when (member major-mode (list "(fundamental-mode" "text-mode"))
+      (avsait-format-paragraphs)))
   (write-file (expand-file-name
                (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
                                                                        (buffer-name (current-buffer)))
@@ -579,7 +569,7 @@ An alternative to ‘M-x customize-variable ...’ "
                            (cadr erg)
                          (pcase major-mode
                            (`python-mode ".py")
-                           (_ ".org"))))))))
+                           (_ ".org")))))))
 
 (defun avsait (arg api key &optional model text test role)
   "Query LLM.
