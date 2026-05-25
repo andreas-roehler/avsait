@@ -311,7 +311,7 @@ An alternative to ‘M-x customize-variable ...’ "
           ;; (newline 1)
           (comment-region orig (point))
           (narrow-to-region (point) (point-max))
-          (if (re-search-forward "```\\([[:alpha:]]+\\)" nil 'move 1)
+          (if (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
               (avsait--result-in-language-mode res orig this-mode first second)
             (unless
                 ;; (eq (point-min) (point-max))
