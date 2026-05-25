@@ -284,7 +284,17 @@ An alternative to ‘M-x customize-variable ...’ "
                                        ("elisp" "emacs-lisp-mode")
                                        ("emacs" "emacs-lisp-mode")
                                        ("json" "js-json-mode")
-                                       (_ (concat (match-string-no-properties 1) "-mode")))))
+                                       ("yml" (or
+                                           (and
+                                            (featurep (car (read-from-string  (concat "yaml" "-ts-mode"))))
+                                            (concat "yaml" "-ts-mode"))
+                                           (concat "yaml" "-mode")))
+                                       (_ (or
+                                           (and
+                                            (featurep (concat (match-string-no-properties 1) "-ts-mode"))
+                                            (concat (match-string-no-properties 1) "-ts-mode"))
+                                           (concat (match-string-no-properties 1) "-mode"))))))
+
             (first first)
             (second second)
             erg)
@@ -305,56 +315,8 @@ An alternative to ‘M-x customize-variable ...’ "
               (avsait--result-in-language-mode res orig this-mode first second)
             (unless
                 ;; (eq (point-min) (point-max))
-                (eobp) 
-              (comment-region (point-min) (point-max)))
-            ))))))
-
-  ;; (goto-char orig)
-  ;; (cond (first
-  ;;        (goto-char (point-min))
-  ;;        (comment-region
-  ;;         (and (setq erg (re-search-forward "^```" nil 'move 1))
-  ;;              ;; match the closing triple
-  ;;              ;; (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)"))
-  ;;              (match-beginning 0))
-  ;;         ;; at the closing
-  ;;         (and (or (and (re-search-forward "^```" nil 'move 1)
-  ;;                       ;; match possible new opening triple
-  ;;                       ;; (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)"))
-  ;;                       ;; (match-end 0)
-  ;;                       (line-end-position))
-  ;;                  (point-max))))
-  ;;        (avsait--result-in-language-mode res (point) this-mode first second))
-  ;;       ;; (t (comment-region orig (point-max)))
-  ;;       ((and (re-search-forward "^```" nil 'move 1)
-  ;;             (looking-at "\\([[:graph:]]+\\)\\(.*\\)")
-  ;;             (setq erg (match-end 1))
-  ;;             (or
-  ;;              (setq this-mode (car-safe (member (concat (match-string-no-properties 1) "-mode") known-emacs-modes)))
-  ;;              (member (concat "js-" (match-string-no-properties 1) "-mode") known-emacs-modes)
-  ;;              (member (match-string-no-properties 1) known-emacs-modes)
-  ;;              (setq this-mode (pcase (match-string-no-properties 1)
-  ;;                                ("bash" "sh-mode")
-  ;;                                ("elisp" "emacs-lisp-mode")
-  ;;                                ("emacs" "emacs-lisp-mode")
-  ;;                                ("json" "js-json-mode")
-  ;;                                (_ (concat (match-string-no-properties 1) "-mode"))))))
-  ;;        (when (and first (string= this-mode "emacs-lisp-mode"))
-  ;;          (goto-char (point-min))
-  ;;          (insert "-*- lexical-binding: t; -*-")(newline 1) (setq first t))
-  ;;        (funcall (car (read-from-string this-mode)))
-  ;;        (goto-char erg) (skip-chars-forward " \t\r\n\f") (newline 1)
-  ;;        (comment-region orig (point))
-  ;;        ;; (setq first t)
-  ;;        (narrow-to-region (and (re-search-forward "^```" nil 'move 1)(match-beginning 0)) (point-max))
-  ;;        (delete-region (match-beginning 0) (match-end 0))
-  ;;        (avsait--result-in-language-mode res (point) this-mode first second))
-  ;;       ;; ((and (re-search-forward "^```" nil 'move 1)
-  ;;       ;;       (not (looking-at "\\([[:graph:]]+\\)\\(.*\\)")))
-  ;;       ;;  (comment-region (match-beginning 0) (match-end 0))
-  ;;       ;;  (avsait--result-in-language-mode (point) this-mode))
-  ;;       ;; (t (comment-region orig (point-max)))
-  ;;       )))))
+                (eobp)
+              (comment-region (point-min) (point-max)))))))))
 
 (defun avsait--special-edits ()
   (when (looking-at "{\"id\":.+\"content\":\"")
