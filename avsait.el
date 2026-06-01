@@ -118,32 +118,49 @@ Accepts optional arguments BEG END to specify a region"
     (save-excursion
       (avsait--leerzeile-org-kapitel))))
 
-(defun avsait-format-paragraphs ()
+(defun avsait--format-paragraphs-intern (at-program fill-command)
+  (if at-program
+      (when (looking-at comment-start)
+        (funcall fill-command))
+    (funcall fill-command)))
+
+(defun avsait-format-paragraphs (&optional at-program)
   (interactive "*")
   (goto-char (point-min))
-  (let ((orig (point)))
-    (fill-paragraph)
-    (while (progn (forward-paragraph)
-                  (skip-chars-forward " \t\r\n\f")
-                  (fill-paragraph)
-                  (and (<  orig (point))
-                       (setq orig (point))))))
-  (goto-char (point-min))
-  (while (re-search-forward "^*" nil t 1)
-    (when (search-forward ":" (line-end-position) 1)
-      (newline 2)
-      (skip-chars-forward " \t\r\n\f")
-      (indent-according-to-mode)
-      (fill-paragraph)))
-  (goto-char (point-min))
-  (while (re-search-forward "^-" nil t 1)
-    (fill-paragraph))
-  (while (prog1 (not (eobp)) (forward-paragraph))
-    (save-excursion
-      (skip-chars-backward " \t\r\n\f")
-      (fill-paragraph)))
-  (just-one-empty-line)
-  )
+  (let ((paragraph-start (concat paragraph-start "\\|" "# =+[ \t]*$"))
+        (paragraph-separate (concat paragraph-separate "\\|" "# [=-]+[ \t]*$"))
+        (orig (point))
+        (fill-command (cond ((and (eq major-mode 'python-mode)
+                                  ;; check for python-mode.el
+                                  (functionp 'py-fill-paragraph))
+                             'py-fill-paragraph)
+                            (t 'fill-paragraph))))
+    (avsait--format-paragraphs-intern at-program fill-command)
+    (while (progn
+             (if (not (looking-at "#? ?[=-]+[ \t]*$"))
+                 (forward-paragraph)
+               (end-of-line)
+               (skip-chars-forward " \t\r\n\f"))
+             (save-restriction
+               (narrow-to-region (point) (point-max))
+               (avsait--format-paragraphs-intern at-program fill-command)
+               (and (<  orig (point))
+                    (setq orig (point))))))
+    (goto-char (point-min))
+    (while (re-search-forward "^*" nil t 1)
+      (when (search-forward ":" (line-end-position) 1)
+        (newline 2)
+        (skip-chars-forward " \t\r\n\f")
+        (indent-according-to-mode)
+        (avsait--format-paragraphs-intern at-program fill-command)))
+    (goto-char (point-min))
+    (while (re-search-forward "^-" nil t 1)
+      (avsait--format-paragraphs-intern at-program fill-command))
+    (while (prog1 (not (eobp)) (forward-paragraph))
+      (save-excursion
+        (skip-chars-backward " \t\r\n\f")
+        (avsait--format-paragraphs-intern at-program fill-command)))
+    (just-one-empty-line)))
 
 (defun avsait-just-one-empty-line (&optional beg end)
   "Delete consecutive empty lines, retain just one.
@@ -264,14 +281,14 @@ An alternative to ‘M-x customize-variable ...’ "
        (member (concat (match-string-no-properties 0) "-mode") known-emacs-modes))
   (match-string-no-properties 0) "-mode")
 
-(defun avsait--adjust-templates ()
-  ""
-  (interactive "*")
-  (goto-char (point-min))
-  (while (re-search-forward "^| *\\([[:alnum:]]+\\) *" nil t 1)
-    (message "%s" (match-string 1))
+;; (defun avsait--adjust-templates ()
+;;   ""
+;;   (interactive "*")
+;;   (goto-char (point-min))
+;;   (while (re-search-forward "^| *\\([[:alnum:]]+\\) *" nil t 1)
+;;     (message "%s" (match-string 1))
 
-    ))
+;;     ))
 
 (defun avsait--result-in-language-mode (res &optional orig this-mode first second)
   "If some code was request, store the result in the respective mode."
@@ -291,7 +308,7 @@ An alternative to ‘M-x customize-variable ...’ "
                                            (concat "yaml" "-mode")))
                                        (_ (or
                                            (and
-                                            (featurep (concat (match-string-no-properties 1) "-ts-mode"))
+                                            (featurep (car (read-from-string  (concat (match-string-no-properties 1) "-ts-mode"))))
                                             (concat (match-string-no-properties 1) "-ts-mode"))
                                            (concat (match-string-no-properties 1) "-mode"))))))
 
@@ -456,6 +473,17 @@ An alternative to ‘M-x customize-variable ...’ "
     (while (re-search-forward "($" nil t 1)
       (delete-char 1))))
 
+(defun avsait--fix-ampersand ()
+  "\u0026"
+  (interactive "*")
+  (save-excursion
+    (goto-char (point-min))
+    ;; line ends with opening paren
+    (while (search-forward "\u0026" nil t 1)
+      (replace-match "&"))))
+
+
+
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
   (interactive "*")
@@ -478,7 +506,7 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait-pretty-start-end-spaces)
     (avsait-pretty-print--enclosing-braces)
     (when avsait-allow-special-edits-p (avsait--special-edits))
-    (avsait--adjust-templates)
+    ;; (avsait--adjust-templates)
     (avsait--adjust-newlines)
     (avsait--adjust-paragraphs)
     (avsait--delete-consecutive-empty-lines)
@@ -536,7 +564,10 @@ An alternative to ‘M-x customize-variable ...’ "
               ("tex" ".tcl")
               ("vh-----dl" ".tex")
               ("verilog" ".vhd")
-              ("vue.js" ".v"))))))
+              ("vue.js" ".v")
+              ("yaml"  ".yml")
+              ("yml"  ".yml")
+              )))))
 
 (defun avsait--write-debug-output (output-buffer)
   ""
@@ -559,8 +590,9 @@ An alternative to ‘M-x customize-variable ...’ "
       (avsait--result-in-language-mode erg)))
   (when avsait-format-paragraphs-p
     ;; (unless erg
-    (when (member major-mode (list "(fundamental-mode" "text-mode"))
-      (avsait-format-paragraphs)))
+    (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
+      (avsait-format-paragraphs)
+      (avsait-format-paragraphs t)))
   (unless test
     (write-file (expand-file-name
                  (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
