@@ -139,8 +139,8 @@ Accepts optional arguments BEG END to specify a region"
     (while (progn
              (if (not (looking-at "#? ?[=-]+[ \t]*$"))
                  (forward-paragraph)
-               (end-of-line)
-               (skip-chars-forward " \t\r\n\f"))
+               (end-of-line))
+             (skip-chars-forward " \t\r\n\f")
              (save-restriction
                (narrow-to-region (point) (point-max))
                (avsait--format-paragraphs-intern at-program fill-command)
@@ -407,6 +407,13 @@ An alternative to ‘M-x customize-variable ...’ "
   (save-excursion (while (search-forward "\\\""nil t 1)
                     (replace-match "\""))))
 
+(defun avsait-pretty-print--enumerations ()
+  (save-excursion (while (re-search-forward "^#? ?[2-9]+\\." nil t 1)
+                    (beginning-of-line)
+                    (newline 1)
+                    (end-of-line))))
+
+
 (defun avsait-pretty-print--remove-doublestars ()
   (save-excursion (while (search-forward "**"nil t 1)
                     (replace-match ""))))
@@ -502,6 +509,7 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait-pretty-print--content)
     (avsait-pretty-print--keywords)
     (avsait-pretty-print--single-paren)
+    (avsait-pretty-print--enumerations)
     (avsait-just-one-empty-line)
     (avsait-pretty-start-end-spaces)
     (avsait-pretty-print--enclosing-braces)
