@@ -21,7 +21,7 @@ jobs:
       - run: git clone https://github.com/haskell/haskell-mode.git
       - run: |
           cd haskell-mode
-          echo "In haskell-mode
+          echo "In haskell-mode"
           ls -lart
 
       # - run: |
