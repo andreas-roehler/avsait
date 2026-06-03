@@ -23,6 +23,7 @@ jobs:
           cd haskell-mode
           echo "In haskell-mode"
           ls -lart
+          
 
       # - run: |
           # install haskell-mode
@@ -32,6 +33,7 @@ jobs:
           # echo "(require 'haskell-mode)" >> /home/circleci/.emacs
       - run: |
           ls -lart
+          echo $PWD
           # test haskell-mode
           # emacs -Q --batch --eval "(haskell-mode)"
       - run:
