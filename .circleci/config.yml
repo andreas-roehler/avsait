@@ -26,7 +26,8 @@ jobs:
           # echo "(add-to-list 'load-path \"/home/circleci/.emacs.d/haskell-mode\")" >> /home/circleci/.emacs
           # echo "(add-to-list 'load-path \"
           # echo "(require 'haskell-mode)" >> /home/circleci/.emacs
-      # - run: |
+      - run: |
+          ls -lart
           # test haskell-mode
           # emacs -Q --batch --eval "(haskell-mode)"
       - run:
@@ -40,6 +41,7 @@ jobs:
               --eval "(load \"~/avsait/avsait.el\")" \
               --eval "(load \"~/avsait/avsait-setup-ert-tests.el\")" \
               --eval "(load \"~/avsait/test/avsait-ert-pretty-print-tests.el\")" \
+              --eval "(load \"haskel-mode.el\")" \
               --eval "(haskell-mode)" \
               --eval "(sit-for 1)" \
               -f ert-run-tests-batch-and-exit
