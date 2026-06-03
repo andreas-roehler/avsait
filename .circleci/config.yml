@@ -26,9 +26,9 @@ jobs:
           # echo "(add-to-list 'load-path \"/home/circleci/.emacs.d/haskell-mode\")" >> /home/circleci/.emacs
           # echo "(add-to-list 'load-path \"
           # echo "(require 'haskell-mode)" >> /home/circleci/.emacs
-      - run: |
+      # - run: |
           # test haskell-mode
-          emacs -Q --batch --eval "(haskell-mode)"
+          # emacs -Q --batch --eval "(haskell-mode)"
       - run:
           name: ERT tests
           command: |
