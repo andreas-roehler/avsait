@@ -19,7 +19,7 @@ jobs:
             echo "Gebe Umgebung aus"
             ls -lart
       - run: git clone https://github.com/haskell/haskell-mode.git
-      - run: cd haskell-mode && make
+      - run: cd haskell-mode
       - run: |
           # install haskell-mode
           cp -r haskell-mode /home/circleci/.emacs.d/
