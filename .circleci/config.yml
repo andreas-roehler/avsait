@@ -23,6 +23,7 @@ jobs:
           cd haskell-mode
           echo "In haskell-mode"
           echo "\$PWD: $PWD"
+          echo $PWD
           ls -lart
           
 
@@ -50,7 +51,7 @@ jobs:
               --eval "(load \"~/avsait/avsait.el\")" \
               --eval "(load \"~/avsait/avsait-setup-ert-tests.el\")" \
               --eval "(load \"~/avsait/test/avsait-ert-pretty-print-tests.el\")" \
-              --eval "(load \"~/avsait/haskel-mode/haskel.el\" nil t)" \
+              --eval "(load \"/root/avsait/haskel-mode/haskel.el\" nil t)" \
               --eval "(sit-for 1)" \
               -f ert-run-tests-batch-and-exit
 
