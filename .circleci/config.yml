@@ -51,7 +51,7 @@ jobs:
               --eval "(load \"~/avsait/avsait.el\")" \
               --eval "(load \"~/avsait/avsait-setup-ert-tests.el\")" \
               --eval "(load \"~/avsait/test/avsait-ert-pretty-print-tests.el\")" \
-              --eval "(load \"/root/avsait/haskel-mode/haskel.el\" nil t)" \
+              --eval "(load \"~/avsait/haskell-mode/haskell.el\" nil t)" \
               --eval "(sit-for 1)" \
               -f ert-run-tests-batch-and-exit
 
