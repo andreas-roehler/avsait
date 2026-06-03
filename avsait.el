@@ -486,7 +486,7 @@ An alternative to ‘M-x customize-variable ...’ "
   (save-excursion
     (goto-char (point-min))
     ;; line ends with opening paren
-    (while (search-forward "\u0026" nil t 1)
+    (while (search-forward "\\u0026" nil t 1)
       (replace-match "&"))))
 
 
@@ -497,6 +497,7 @@ An alternative to ‘M-x customize-variable ...’ "
   (let (erg previous-line-was-empty)
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
+    (avsait--fix-ampersand)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
     (avsait-pretty-print--tabs)
