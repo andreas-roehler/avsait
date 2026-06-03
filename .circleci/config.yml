@@ -19,15 +19,16 @@ jobs:
             echo "Gebe Umgebung aus"
             ls -lart
       - run: git clone https://github.com/haskell/haskell-mode.git
-      - run: cd haskell-mode
-      - run: |
+      # - run: cd haskell-mode
+      # - run: |
           # install haskell-mode
-          cp -r haskell-mode /home/circleci/.emacs.d/
-          echo "(add-to-list 'load-path \"/home/circleci/.emacs.d/haskell-mode\")" >> /home/circleci/.emacs
-          echo "(require 'haskell-mode)" >> /home/circleci/.emacs
+          # cp -r haskell-mode /home/circleci/.emacs.d/
+          # echo "(add-to-list 'load-path \"/home/circleci/.emacs.d/haskell-mode\")" >> /home/circleci/.emacs
+          # echo "(add-to-list 'load-path \"
+          # echo "(require 'haskell-mode)" >> /home/circleci/.emacs
       - run: |
           # test haskell-mode
-          emacs --batch --eval "(haskell-mode)"
+          emacs -Q --batch --eval "(haskell-mode)"
       - run:
           name: ERT tests
           command: |
@@ -39,6 +40,7 @@ jobs:
               --eval "(load \"~/avsait/avsait.el\")" \
               --eval "(load \"~/avsait/avsait-setup-ert-tests.el\")" \
               --eval "(load \"~/avsait/test/avsait-ert-pretty-print-tests.el\")" \
+              --eval "(haskell-mode)" \
               --eval "(sit-for 1)" \
               -f ert-run-tests-batch-and-exit
 
