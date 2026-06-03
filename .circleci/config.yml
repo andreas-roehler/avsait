@@ -38,10 +38,11 @@ jobs:
               --eval "(message (emacs-version))" \
               --eval "(message (getenv \"PWD\"))" \
               --eval "(add-to-list 'load-path (getenv \"PWD\"))" \
+              --eval "(add-to-list 'load-path (concat (getenv \"PWD\") \"/haskell-mode\"))" \
               --eval "(load \"~/avsait/avsait.el\")" \
               --eval "(load \"~/avsait/avsait-setup-ert-tests.el\")" \
               --eval "(load \"~/avsait/test/avsait-ert-pretty-print-tests.el\")" \
-              --eval "(load \"haskel-mode.el\")" \
+              --eval "(load \"haskel-mode/haskel-mode.el\" nil t)" \
               --eval "(haskell-mode)" \
               --eval "(sit-for 1)" \
               -f ert-run-tests-batch-and-exit
