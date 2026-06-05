@@ -302,15 +302,17 @@ An alternative to ‘M-x customize-variable ...’ "
                                        ("emacs" "emacs-lisp-mode")
                                        ("json" "js-json-mode")
                                        ("yml" (or
-                                           (and
-                                            (featurep (car (read-from-string  (concat "yaml" "-ts-mode"))))
-                                            (concat "yaml" "-ts-mode"))
-                                           (concat "yaml" "-mode")))
-                                       (_ (or
-                                           (and
-                                            (featurep (car (read-from-string  (concat (match-string-no-properties 1) "-ts-mode"))))
-                                            (concat (match-string-no-properties 1) "-ts-mode"))
-                                           (concat (match-string-no-properties 1) "-mode"))))))
+                                               (and
+                                                (featurep (car (read-from-string (concat "yaml" "-ts-mode"))))
+                                                (concat "yaml" "-ts-mode"))
+                                               (concat "yaml" "-mode")))
+                                       (_
+                                        (cond
+                                         ((featurep (car (read-from-string (concat (match-string-no-properties 1) "-ts-mode"))))
+                                          (concat (match-string-no-properties 1) "-ts-mode"))
+                                         ((featurep (car (read-from-string (concat (match-string-no-properties 1) "-mode"))))
+                                          (concat (match-string-no-properties 1) "-mode"))
+                                         (t "fundamental-mode"))))))
 
             (first first)
             (second second)
@@ -318,7 +320,7 @@ An alternative to ‘M-x customize-variable ...’ "
         ;; (goto-char (match-beginning 1))
         (newline 1)
         (funcall (car (read-from-string this-mode)))
-        (comment-region (point-min) (point))
+        (unless (string= this-mode 'fundamental-mode) (comment-region (point-min) (point)))
         (when (re-search-forward "```" nil 'move 1)
           (setq orig (match-beginning 0))
           ;;  the closing ```
@@ -326,14 +328,14 @@ An alternative to ‘M-x customize-variable ...’ "
           (save-excursion (goto-char (match-beginning 0))
                           (newline 1))
           ;; (newline 1)
-          (comment-region orig (point))
+          (unless (string= this-mode 'fundamental-mode) (comment-region orig (point)))
           (narrow-to-region (point) (point-max))
           (if (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
               (avsait--result-in-language-mode res orig this-mode first second)
             (unless
                 ;; (eq (point-min) (point-max))
                 (eobp)
-              (comment-region (point-min) (point-max)))))))))
+              (unless (string= this-mode 'fundamental-mode)(comment-region (point-min) (point-max))))))))))
 
 (defun avsait--special-edits ()
   (when (looking-at "{\"id\":.+\"content\":\"")

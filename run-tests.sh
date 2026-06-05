@@ -66,8 +66,9 @@ SETUP=$PWD/avsait-setup-ert-tests.el
 echo "\$SETUP: $SETUP"
 
 AVSAIT=$PWD/avsait.el
-
+HASKELL_MODE_DIR=${HOME}/arbeit/emacs-lisp/haskell-mode
 TEST1=$TESTDIR/avsait-ert-pretty-print-tests.el
+TEST2=$TESTDIR/avsait-ert-haskell-mode-tests.el
 
 h1() { 
     date; time -p $EMACS -Q -L . --batch \
@@ -80,6 +81,22 @@ h1() {
 -load $SETUP \
 -load $AVSAIT \
 -l $TEST1 \
+-f ert-run-tests-batch-and-exit
+}
+
+h2() { 
+    date; time -p $EMACS -Q -L . --batch \
+--eval "(message (emacs-version))" \
+--eval "(setq avsait-debug-p nil)" \
+--eval "(setq avsait-verbose-p nil)" \
+--eval "(setq avsait-install-dir \"$PWD\")" \
+--eval "(add-to-list 'load-path \"$TESTDIR/\")" \
+--eval "(add-to-list 'load-path \"$PWD/\")" \
+--eval "(add-to-list 'load-path \"$HASKELL_MODE_DIR/\")" \
+--eval "(require 'haskell)" \
+-load $SETUP \
+-load $AVSAIT \
+-l $TEST2 \
 -f ert-run-tests-batch-and-exit
 }
 
@@ -116,7 +133,7 @@ if [ $IFLOCAL -eq 0 ]; then
     do
         case $option in
 	    1) echo "h1: Lade \$TEST1: \"$TEST1\"";h1;;
-	    # 2) echo "h2: Lade \$TEST2: \"$TEST2\"";h2;;
+	    2) echo "h2: Lade \$TEST2: \"$TEST2\"";h2;;
 	    # 3) echo "h3: Lade \$TEST3: \"$TEST3\"";h3;;
 	    # 4) echo "h4: Lade \$TEST4: \"$TEST4\"";h4;;
 	    # 5) echo "h5: Lade \$TEST5: \"$TEST5\"";h5;;
