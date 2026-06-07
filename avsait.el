@@ -119,12 +119,15 @@ Accepts optional arguments BEG END to specify a region"
       (avsait--leerzeile-org-kapitel))))
 
 (defun avsait--format-paragraphs-intern (at-program fill-command)
-  (if at-program
-      (when (looking-at comment-start)
-        (funcall fill-command))
-    (funcall fill-command)))
+  (cond (at-program
+         (when (looking-at comment-start)
+           (goto-char (match-end 0)) 
+           (funcall fill-command)))
+        (t
+         (funcall fill-command))))
 
 (defun avsait-format-paragraphs (&optional at-program)
+  "With optional AT-PROGRAM format comments only. "
   (interactive "*")
   (goto-char (point-min))
   (let ((paragraph-start (concat paragraph-start "\\|" "# =+[ \t]*$"))
@@ -134,8 +137,21 @@ Accepts optional arguments BEG END to specify a region"
                                   ;; check for python-mode.el
                                   (functionp 'py-fill-paragraph))
                              'py-fill-paragraph)
-                            (t 'fill-paragraph))))
-    (avsait--format-paragraphs-intern at-program fill-command)
+                            (t 'fill-paragraph)))
+        (plain (unless at-program (save-excursion (search-forward "```plain" nil t))))
+        done)
+    ;; ```plain - a table may follow
+    (if plain
+        ;; semaphore: don't format a paragraph after ```plain
+        (cond (done
+               ;; dont (format when set
+               (setq done nil)
+               (forward-paragraph))
+              ((looking-at "```plain")
+               (setq done t)
+               (avsait--format-paragraphs-intern at-program fill-command))
+              (t (avsait--format-paragraphs-intern at-program fill-command)))
+      (avsait--format-paragraphs-intern at-program fill-command))
     (while (progn
              (if (not (looking-at "#? ?[=-]+[ \t]*$"))
                  (forward-paragraph)
@@ -143,7 +159,18 @@ Accepts optional arguments BEG END to specify a region"
              (skip-chars-forward " \t\r\n\f")
              (save-restriction
                (narrow-to-region (point) (point-max))
-               (avsait--format-paragraphs-intern at-program fill-command)
+               (if plain
+                   ;; semaphore: don't format a paragraph after ```plain
+                   (cond (done
+                          ;; dont (format when set
+                          (setq done nil)
+                          (forward-paragraph)
+                          (skip-chars-forward " \t\r\n\f"))
+                         ((looking-at "```plain")
+                          (setq done t)
+                          (avsait--format-paragraphs-intern at-program fill-command))
+                         (t (avsait--format-paragraphs-intern at-program fill-command)))
+                 (avsait--format-paragraphs-intern at-program fill-command))
                (and (<  orig (point))
                     (setq orig (point))))))
     (goto-char (point-min))
@@ -156,10 +183,6 @@ Accepts optional arguments BEG END to specify a region"
     (goto-char (point-min))
     (while (re-search-forward "^-" nil t 1)
       (avsait--format-paragraphs-intern at-program fill-command))
-    (while (prog1 (not (eobp)) (forward-paragraph))
-      (save-excursion
-        (skip-chars-backward " \t\r\n\f")
-        (avsait--format-paragraphs-intern at-program fill-command)))
     (just-one-empty-line)))
 
 (defun avsait-just-one-empty-line (&optional beg end)
@@ -365,6 +388,14 @@ An alternative to ‘M-x customize-variable ...’ "
       (replace-match "")
       (newline 1))))
 
+(defun avsait-pretty-print--triple-backtics ()
+  (save-excursion
+    (while (re-search-forward "```" nil t 1)
+      (beginning-of-line)
+      (newline 1)
+      (end-of-line)
+      (newline 1))))
+
 (defun avsait-pretty-print--tabs ()
   (save-excursion
     (while (search-forward "\t" nil t 1)
@@ -414,7 +445,6 @@ An alternative to ‘M-x customize-variable ...’ "
                     (beginning-of-line)
                     (newline 1)
                     (end-of-line))))
-
 
 (defun avsait-pretty-print--remove-doublestars ()
   (save-excursion (while (search-forward "**"nil t 1)
@@ -491,8 +521,6 @@ An alternative to ‘M-x customize-variable ...’ "
     (while (search-forward "\\u0026" nil t 1)
       (replace-match "&"))))
 
-
-
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
   (interactive "*")
@@ -502,6 +530,7 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait--fix-ampersand)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
+    (avsait-pretty-print--triple-backtics)
     (avsait-pretty-print--tabs)
     (avsait-pretty-print--greater-than)
     (avsait-pretty-print--i-hope)
@@ -615,6 +644,20 @@ An alternative to ‘M-x customize-variable ...’ "
                              (`python-mode ".py")
                              (_ ".org"))))))))
 
+(defun avsait--read-input-file (file)
+  ""
+  (interactive
+   (list (current-buffer)))
+  (find-file (expand-file-name file))
+  (when avsait-verbose-p (message "%s" (concat "loading " file)))
+  (goto-char (point-min))
+  (save-excursion
+  (while (re-search-forward "\\\n\\|\\\t" nil t 1)
+    (replace-match " ")))
+  (save-excursion
+    (while (re-search-forward "\"\\([^\"]+\\)\"" nil t 1)
+      (replace-match (concat "‘" (match-string-no-properties 1) "’")))))
+
 (defun avsait (arg api key &optional model text test role)
   "Query LLM.
 Argument ARG With \\[universal-argument] read from input-file, not from minibuffer.
@@ -635,16 +678,20 @@ TEXT: the query when called from a program"
                       (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))
                      ((and (or avsait-read-from-input-file-p (eq 4 (prefix-numeric-value arg)))
                            (not (string= "" avsait-input-file)))
-                      (progn (find-file (expand-file-name avsait-input-file))
-                             (with-current-buffer (get-file-buffer avsait-input-file)
-                               (message "%s" (get-file-buffer avsait-input-file))
-                               ;; (message "%s" (buffer-name avsait-input-file)))
-                               (replace-regexp-in-string "\\\n\\|\\\t" "" (buffer-substring-no-properties (point-min) (point-max))))))
+                      (avsait--read-input-file avsait-input-file))
+                      ;; (progn (find-file (expand-file-name avsait-input-file))
+                      ;;        (with-current-buffer (get-file-buffer avsait-input-file)
+                      ;;          (message "%s" (get-file-buffer avsait-input-file))
+                      ;;          ;; (message "%s" (buffer-name avsait-input-file)))
+                      ;;          (replace-regexp-in-string "\\\n\\|\\\t" " " (buffer-substring-no-properties (point-min) (point-max))))))
                      (t (read-from-minibuffer "Eingabe: " (car kill-ring)))))
+         (neutext text)
          (model (or model "llama-3.3-70b-versatile"))
-         (start (if (string-match " " text)
-                    (+ 1 (string-match " " text))
-                  0))
+         (start (point-min)
+          ;; (if (string-match " " text)
+          ;;           (+ 1 (string-match " " text))
+          ;;         0)
+          )
          (outbut-buffer-init-text (or test (capitalize (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0))))))
          (output-buffer (or test (if (not (string= "" avsait-output-buffer))
                                      avsait-output-buffer
