@@ -121,7 +121,7 @@ Accepts optional arguments BEG END to specify a region"
 (defun avsait--format-paragraphs-intern (at-program fill-command)
   (cond (at-program
          (when (looking-at comment-start)
-           (goto-char (match-end 0)) 
+           (goto-char (match-end 0))
            (funcall fill-command)))
         (t
          (funcall fill-command))))
@@ -514,12 +514,20 @@ An alternative to ‘M-x customize-variable ...’ "
 
 (defun avsait--fix-ampersand ()
   "\u0026"
-  (interactive "*")
   (save-excursion
     (goto-char (point-min))
     ;; line ends with opening paren
     (while (search-forward "\\u0026" nil t 1)
       (replace-match "&"))))
+
+(defun avsait--fix-greater-than-delimiters ()
+  "\\u003c\([^\\]+\)\\u003e"
+  ;; (interactive "*")
+  (save-excursion
+    (goto-char (point-min))
+    ;; line ends with opening paren
+    (while (re-search-forward "\\\\u003c\\([^\\]+\\)\\\\u003e" nil t)
+      (replace-match (concat "‘" (match-string-no-properties 1) "’")))))
 
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
@@ -528,6 +536,7 @@ An alternative to ‘M-x customize-variable ...’ "
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
     (avsait--fix-ampersand)
+    (avsait--fix-greater-than-delimiters)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
     (avsait-pretty-print--triple-backtics)
