@@ -388,6 +388,19 @@ An alternative to ‘M-x customize-variable ...’ "
       (replace-match "")
       (newline 1))))
 
+(defun avsait-pretty-print--items ()
+  (save-excursion
+    (while (search-forward "\\n\\t+" nil t 1)
+      (replace-match "
+  +"
+      ;; (replace-match "  +")
+      ;; (goto-char (match-beginning 0))
+      ;; (newline 1)
+      )
+      (delete-region (point) (progn (skip-chars-forward " \t\r\n\f")(point))) 
+      (fixup-whitespace)
+      )))
+
 (defun avsait-pretty-print--triple-backtics ()
   (save-excursion
     (while (re-search-forward "```" nil t 1)
@@ -398,7 +411,7 @@ An alternative to ‘M-x customize-variable ...’ "
 
 (defun avsait-pretty-print--tabs ()
   (save-excursion
-    (while (search-forward "\t" nil t 1)
+    (while (search-forward "\\t" nil t 1)
       (replace-match "  "))))
 
 (defun avsait-pretty-print--greater-than ()
@@ -513,11 +526,11 @@ An alternative to ‘M-x customize-variable ...’ "
       (delete-char 1))))
 
 (defun avsait--fix-ampersand ()
-  "\u0026"
+  "&"
   (save-excursion
     (goto-char (point-min))
     ;; line ends with opening paren
-    (while (search-forward "\\u0026" nil t 1)
+    (while (search-forward "\&" nil t 1)
       (replace-match "&"))))
 
 (defun avsait--fix-greater-than-delimiters ()
@@ -537,6 +550,7 @@ An alternative to ‘M-x customize-variable ...’ "
     (goto-char (point-min))
     (avsait--fix-ampersand)
     (avsait--fix-greater-than-delimiters)
+    (avsait-pretty-print--items)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
     (avsait-pretty-print--triple-backtics)
