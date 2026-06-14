@@ -121,7 +121,6 @@ Accepts optional arguments BEG END to specify a region"
 (defun avsait--format-paragraphs-intern (at-program fill-command)
   (cond (at-program
          (when (looking-at comment-start)
-           (goto-char (match-end 0))
            (funcall fill-command)))
         (t
          (funcall fill-command))))
@@ -138,39 +137,45 @@ Accepts optional arguments BEG END to specify a region"
                                   (functionp 'py-fill-paragraph))
                              'py-fill-paragraph)
                             (t 'fill-paragraph)))
-        (plain (unless at-program (save-excursion (search-forward "```plain" nil t))))
+        ;; (plain (unless at-program (save-excursion (search-forward "```plain" nil t))))
         done)
     ;; ```plain - a table may follow
-    (if plain
-        ;; semaphore: don't format a paragraph after ```plain
-        (cond (done
-               ;; dont (format when set
-               (setq done nil)
-               (forward-paragraph))
-              ((looking-at "```plain")
-               (setq done t)
-               (avsait--format-paragraphs-intern at-program fill-command))
-              (t (avsait--format-paragraphs-intern at-program fill-command)))
-      (avsait--format-paragraphs-intern at-program fill-command))
+    ;; (if plain
+    ;; semaphore: don't format a paragraph after ```plain
+    ;; (cond (done
+    ;;        ;; dont (format when set
+    ;;        (setq done nil)
+    ;;        (forward-paragraph))
+    ;;       ((looking-at "```plain")
+    ;;        (setq done t)
+    ;;        (avsait--format-paragraphs-intern at-program fill-command))
+    ;;       (t (avsait--format-paragraphs-intern at-program fill-command)))
+    ;; (avsait--format-paragraphs-intern at-program fill-command))
     (while (progn
-             (if (not (looking-at "#? ?[=-]+[ \t]*$"))
-                 (forward-paragraph)
-               (end-of-line))
+             ;; (if (not (looking-at "#? ?[=-]+[ \t]*$"))
+             ;;     (forward-paragraph)
+             ;;   (end-of-line))
              (skip-chars-forward " \t\r\n\f")
              (save-restriction
                (narrow-to-region (point) (point-max))
-               (if plain
-                   ;; semaphore: don't format a paragraph after ```plain
-                   (cond (done
-                          ;; dont (format when set
-                          (setq done nil)
-                          (forward-paragraph)
-                          (skip-chars-forward " \t\r\n\f"))
-                         ((looking-at "```plain")
-                          (setq done t)
-                          (avsait--format-paragraphs-intern at-program fill-command))
-                         (t (avsait--format-paragraphs-intern at-program fill-command)))
-                 (avsait--format-paragraphs-intern at-program fill-command))
+               ;; (if plain
+               ;; semaphore: don't format a paragraph after ```plain
+               (cond (done
+                      ;; dont (format when set
+                      (setq done nil)
+                      (forward-paragraph)
+                      (skip-chars-forward " \t\r\n\f"))
+                     ((looking-at "^|")
+                      ;; table, dont't (format
+                      (forward-paragraph)
+                      (skip-chars-forward " \t\r\n\f"))
+                     ((looking-at "```plain")
+                      (setq done t)
+                      (avsait--format-paragraphs-intern at-program fill-command))
+                     (t (avsait--format-paragraphs-intern at-program fill-command)
+                        (forward-paragraph)))
+               ;; (avsait--format-paragraphs-intern at-program fill-command)
+               ;; )
                (and (<  orig (point))
                     (setq orig (point))))))
     (goto-char (point-min))
@@ -304,14 +309,14 @@ An alternative to ‘M-x customize-variable ...’ "
        (member (concat (match-string-no-properties 0) "-mode") known-emacs-modes))
   (match-string-no-properties 0) "-mode")
 
-;; (defun avsait--adjust-templates ()
-;;   ""
-;;   (interactive "*")
-;;   (goto-char (point-min))
-;;   (while (re-search-forward "^| *\\([[:alnum:]]+\\) *" nil t 1)
-;;     (message "%s" (match-string 1))
+(defun avsait--adjust-templates ()
+  ""
+  (interactive "*")
+  (goto-char (point-min))
+  (while (re-search-forward "^| *\\([[:print:]]+\\) *" nil t 1)
+    (message "%s" (match-string 1))
 
-;;     ))
+    ))
 
 (defun avsait--result-in-language-mode (res &optional orig this-mode first second)
   "If some code was request, store the result in the respective mode."
@@ -388,19 +393,6 @@ An alternative to ‘M-x customize-variable ...’ "
       (replace-match "")
       (newline 1))))
 
-(defun avsait-pretty-print--items ()
-  (save-excursion
-    (while (search-forward "\\n\\t+" nil t 1)
-      (replace-match "
-  +"
-      ;; (replace-match "  +")
-      ;; (goto-char (match-beginning 0))
-      ;; (newline 1)
-      )
-      (delete-region (point) (progn (skip-chars-forward " \t\r\n\f")(point))) 
-      (fixup-whitespace)
-      )))
-
 (defun avsait-pretty-print--triple-backtics ()
   (save-excursion
     (while (re-search-forward "```" nil t 1)
@@ -411,7 +403,7 @@ An alternative to ‘M-x customize-variable ...’ "
 
 (defun avsait-pretty-print--tabs ()
   (save-excursion
-    (while (search-forward "\\t" nil t 1)
+    (while (search-forward "\t" nil t 1)
       (replace-match "  "))))
 
 (defun avsait-pretty-print--greater-than ()
@@ -526,21 +518,13 @@ An alternative to ‘M-x customize-variable ...’ "
       (delete-char 1))))
 
 (defun avsait--fix-ampersand ()
-  "&"
+  "\u0026"
+  (interactive "*")
   (save-excursion
     (goto-char (point-min))
     ;; line ends with opening paren
-    (while (search-forward "\&" nil t 1)
+    (while (search-forward "\\u0026" nil t 1)
       (replace-match "&"))))
-
-(defun avsait--fix-greater-than-delimiters ()
-  "\\u003c\([^\\]+\)\\u003e"
-  ;; (interactive "*")
-  (save-excursion
-    (goto-char (point-min))
-    ;; line ends with opening paren
-    (while (re-search-forward "\\\\u003c\\([^\\]+\\)\\\\u003e" nil t)
-      (replace-match (concat "‘" (match-string-no-properties 1) "’")))))
 
 (defun avsait-pretty-print ()
   "Cleanup the output-buffer."
@@ -549,8 +533,6 @@ An alternative to ‘M-x customize-variable ...’ "
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
     (avsait--fix-ampersand)
-    (avsait--fix-greater-than-delimiters)
-    (avsait-pretty-print--items)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
     (avsait-pretty-print--triple-backtics)
