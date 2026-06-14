@@ -460,23 +460,38 @@ An alternative to ‘M-x customize-variable ...’ "
   (save-excursion (when (search-forward "\"content\":" nil t 1)
                     (newline 2))))
 
+;; (defun avsait-pretty-print--keywords ()
+;;   (interactive "*")
+;;   (save-excursion (while (re-search-forward (regexp-opt (list
+;;                                                          "id"
+;;                                                          "index"
+;;                                                          "logprobs"
+;;                                                          "role"
+;;                                                          "usage"
+;;                                                          )
+;;                                                         'symbols)
+;;                                             nil t 1)
+;;                     (delete-region (line-beginning-position) (line-end-position)))))
+
 (defun avsait-pretty-print--keywords ()
   (interactive "*")
-  (save-excursion (while (re-search-forward (regexp-opt (list
-                                                         "id"
-                                                         "index"
-                                                         "logprobs"
-                                                         "role"
-                                                         "usage"
-                                                         )
-                                                        'symbols)
-                                            nil t 1)
-                    (delete-region (line-beginning-position) (line-end-position)))))
+  (save-excursion (when (search-forward "content\":" nil t)
+                    (save-excursion
+                      (forward-sexp)
+                      (delete-region (point) (point-max))
+                      (backward-delete-char-untabify 1))
+                    (delete-region (point-min) (point))))
+  (when (eq (char-after) 34)
+    (delete-char 1)))
 
 (defun avsait-pretty-print--single-paren ()
   (interactive "*")
-  (save-excursion (while (re-search-forward "^[]\\[{}]$" nil t 1)
-                    (delete-region (line-beginning-position) (line-end-position)))))
+  (save-excursion (while (re-search-forward "^[\\[{]" nil t 1)
+                    (backward-char)
+                    (save-excursion
+                      (forward-sexp)
+                      (backward-delete-char-untabify 1))
+                    (delete-char 1))))
 
 (defun avsait-pretty-print--remove-backslash-at-EOL ()
   (save-excursion (while (and (not (eobp)) (re-search-forward "$" nil t 1)(eolp))
@@ -532,6 +547,8 @@ An alternative to ‘M-x customize-variable ...’ "
   (let (erg previous-line-was-empty)
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
+    (avsait-pretty-print--keywords)
+    ;; (avsait-pretty-print--enclosing-braces)
     (avsait--fix-ampersand)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
@@ -544,12 +561,10 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait-pretty-print--remove-doublestars)
     (avsait-pretty-print--remove-backslash-at-EOL)
     (avsait-pretty-print--content)
-    (avsait-pretty-print--keywords)
     (avsait-pretty-print--single-paren)
     (avsait-pretty-print--enumerations)
     (avsait-just-one-empty-line)
     (avsait-pretty-start-end-spaces)
-    (avsait-pretty-print--enclosing-braces)
     (when avsait-allow-special-edits-p (avsait--special-edits))
     ;; (avsait--adjust-templates)
     (avsait--adjust-newlines)
