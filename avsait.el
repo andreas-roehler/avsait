@@ -329,6 +329,7 @@ An alternative to ‘M-x customize-variable ...’ "
                                        ("elisp" "emacs-lisp-mode")
                                        ("emacs" "emacs-lisp-mode")
                                        ("json" "js-json-mode")
+                                       ("scheme" "scheme-mode")
                                        ("yml" (or
                                                (and
                                                 (featurep (car (read-from-string (concat "yaml" "-ts-mode"))))
