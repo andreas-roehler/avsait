@@ -139,27 +139,12 @@ Accepts optional arguments BEG END to specify a region"
                             (t 'fill-paragraph)))
         ;; (plain (unless at-program (save-excursion (search-forward "```plain" nil t))))
         done)
-    ;; ```plain - a table may follow
-    ;; (if plain
-    ;; semaphore: don't format a paragraph after ```plain
-    ;; (cond (done
-    ;;        ;; dont (format when set
-    ;;        (setq done nil)
-    ;;        (forward-paragraph))
-    ;;       ((looking-at "```plain")
-    ;;        (setq done t)
-    ;;        (avsait--format-paragraphs-intern at-program fill-command))
-    ;;       (t (avsait--format-paragraphs-intern at-program fill-command)))
-    ;; (avsait--format-paragraphs-intern at-program fill-command))
     (while (progn
-             ;; (if (not (looking-at "#? ?[=-]+[ \t]*$"))
-             ;;     (forward-paragraph)
-             ;;   (end-of-line))
              (skip-chars-forward " \t\r\n\f")
              (save-restriction
                (narrow-to-region (point) (point-max))
                ;; (if plain
-               ;; semaphore: don't format a paragraph after ```plain
+               ;; don't format a paragraph after ```plain
                (cond (done
                       ;; dont (format when set
                       (setq done nil)
@@ -407,6 +392,13 @@ An alternative to ‘M-x customize-variable ...’ "
     (while (search-forward "\t" nil t 1)
       (replace-match "  "))))
 
+(defun avsait-pretty-print--backticks ()
+  ""
+  (interactive "*")
+  (save-excursion
+    (while (re-search-forward (concat "^" comment-start-skip "```$") nil t 1)
+      (replace-match ""))))
+
 (defun avsait-pretty-print--greater-than ()
   (save-excursion
     (while (re-search-forward "\\\\u003[ce]" nil t 1)
@@ -556,6 +548,7 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait-pretty-print--triple-backtics)
     (avsait-pretty-print--tabs)
     (avsait-pretty-print--greater-than)
+    ;; (avsait-pretty-print--backticks)
     (avsait-pretty-print--i-hope)
     (avsait-pretty-print--delete-backlashes)
     (avsait-pretty-print--unescape-doublequotes)
@@ -653,7 +646,10 @@ An alternative to ‘M-x customize-variable ...’ "
     ;; (unless erg
     (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
       (avsait-format-paragraphs)
-      (avsait-format-paragraphs t)))
+      (avsait-format-paragraphs t)
+      (avsait-pretty-print--backticks)
+      (avsait-just-one-empty-line)
+      ))
   (unless test
     (write-file (expand-file-name
                  (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
