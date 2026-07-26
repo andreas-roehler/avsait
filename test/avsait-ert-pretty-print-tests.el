@@ -60,7 +60,7 @@
    (avsait--pp-and-language (current-buffer) t)
    (goto-char (point-max))
    (skip-chars-backward " \t\r\n\f")
-   (beginning-of-line)
+   (beginning-of-buffer)
    (should (looking-at comment-start))))
 
 (ert-deftest avsait-ert-bash-test-8p8mGk ()

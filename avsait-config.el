@@ -17,14 +17,6 @@
 
 ;;; Code:
 
-
-(defgroup avsait nil
-  "Support for the programming language" ;; generic mark
-  :group 'convenience
-  :prefix "avsait-"
-  :group 'avsait)
-
-
 (defcustom avsait-output-dir ""
   "If set, the result will be stored in that directory. If left empty, no storage."
   :type 'string
@@ -78,7 +70,7 @@ Default is nil"
 Default is nil"
   :type 'boolean
   :tag "avsait-debug-p"
-  :safe 'booealp
+  :safe 'booleanp
   :group 'avsait)
 
 ;; (defvar avsait-debug-p nil
@@ -86,10 +78,10 @@ Default is nil"
 
 ;; moonshotai/kimi-k2-instruct-0905
 
-(defalias 'gq4 'groq4)
-(defun groq4 (&optional arg)
-  (interactive "P")
-  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "meta-llama/llama-4-scout-17b-16e-instruct"))
+;; (defalias 'gq4 'groq4)
+;; (defun groq4 (&optional arg)
+;;   (interactive "P")
+;;   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "qwen/qwen3.6-27b"))
 
 (defalias 'ds 'groqDeepSeek)
 (defun groqDeepSeek (&optional arg)
@@ -123,23 +115,33 @@ Default is nil"
   (interactive)
   (avsait '(4) "https://api.groq.com/openai/v1/chat/completions -s" deepSeek_pw "DeepSeek-R1-Distill-Llama-70b"))
 
-
-(defalias 'gms 'kimi-k2)
-(defun kimi-k2 (&optional arg)
+(defalias 'gpt 'openai/gpt-oss-20b)
+(defun openai/gpt-oss-20b (&optional arg)
   (interactive "P")
-  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "moonshotai/kimi-k2-instruct-0905"))
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "openai/gpt-oss-20b"))
 
-(defalias 'gq 'groq)
-(defun groq (&optional arg)
+;; * deprecation of the Llama 3.3 70B Versatile model.
+;;   recommended replacement model, GPT OSS 120B / Qwen3.6 27B
+
+;; "error":{ "message":"The model `qwen3.6-27b` does not exist or you do
+;; not have access to
+;; it.","type":"invalid_request_error","code":"model_not_found"}
+
+;; qwen/qwen3.6-27b
+(defalias 'gq 'gpt-oss-120b)
+(defalias 'groq 'gpt-oss-120b)
+(defun gpt-oss-120b (&optional arg)
   (interactive "P")
-  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile"))
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "openai/gpt-oss-120b"))
+
+(defun qwen (&optional arg)
+  (interactive "P")
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "qwen/qwen3.6-27b"))
 
 (defalias 'gb 'groq-compound)
 (defun groq-compound (&optional arg)
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile" "compound-beta"))
-
-;; (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile" nil nil "/home/speck/arbeit/emacs-lisp/operator-mode/test/rueckstrich-tests-anlegen.text"))
 
 (provide 'avsait-config)
 ;;; avsait-config.el ends here

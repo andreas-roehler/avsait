@@ -330,7 +330,7 @@ An alternative to ‘M-x customize-variable ...’ "
 
             (first first)
             (second second)
-            erg)
+            )
         ;; (goto-char (match-beginning 1))
         (newline 1)
         (funcall (car (read-from-string this-mode)))
@@ -379,6 +379,29 @@ An alternative to ‘M-x customize-variable ...’ "
       (replace-match "")
       (newline 1))))
 
+(defun avsait-pretty-print--star-after-newline ()
+  (save-excursion
+    (while (search-forward "\\n*" nil t 1)
+      (replace-match "\n-"))))
+
+(defun avsait-pretty-print--bash-prompt ()
+  (save-excursion
+    (while (search-forward "bash\\n#" nil t 1)
+
+      (let ((beg (match-beginning 0))
+            (end (save-excursion
+                   (search-forward "```" nil t))))
+        (when end
+          (goto-char beg)
+          (while (search-forward "\\n#" end t 1)
+            (replace-match "\n>"))
+)))))
+
+(defun avsait-pretty-print--org-fill-paragraph ()
+  (save-excursion
+    (while (re-search-forward "^- " nil t 1)
+      (org-fill-paragraph))))
+
 (defun avsait-pretty-print--triple-backtics ()
   (save-excursion
     (while (re-search-forward "```" nil t 1)
@@ -389,15 +412,35 @@ An alternative to ‘M-x customize-variable ...’ "
 
 (defun avsait-pretty-print--tabs ()
   (save-excursion
-    (while (search-forward "\t" nil t 1)
+    (while (search-forward "\\t" nil t 1)
       (replace-match "  "))))
 
-(defun avsait-pretty-print--backticks ()
+;; not ready yet
+(defun avsait-pretty-print--table ()
   ""
   (interactive "*")
   (save-excursion
+    (let ((counter 1))
+    (while (re-search-forward (concat comment-start "|") nil t 1)
+      (save-excursion
+      (forward-line -1)
+      (insert (concat "#+name: table_" (prin1-to-string counter)))
+      (setq counter (+ 1 counter)))
+      (forward-word 1)
+      (indent-for-tab-command)
+      ;; (call-interactively (kbd "TAB"))
+      ))))
+
+(defun avsait-pretty-print--backticks (lang)
+  ""
+  (interactive "*")
+  (save-excursion
+    (while (re-search-forward (concat "```"lang) nil t 1)
+      (replace-match lang)))
+  (save-excursion
     (while (re-search-forward (concat "^" comment-start-skip "```$") nil t 1)
-      (replace-match ""))))
+      (replace-match "")))
+  )
 
 (defun avsait-pretty-print--greater-than ()
   (save-excursion
@@ -540,6 +583,8 @@ An alternative to ‘M-x customize-variable ...’ "
   (let (erg previous-line-was-empty)
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
+    (avsait-pretty-print--bash-prompt)
+    (avsait-pretty-print--star-after-newline)
     (avsait-pretty-print--keywords)
     ;; (avsait-pretty-print--enclosing-braces)
     (avsait--fix-ampersand)
@@ -637,29 +682,31 @@ An alternative to ‘M-x customize-variable ...’ "
   ""
   (interactive
    (list (current-buffer)))
-  (when avsait-pretty-print-p
-    (avsait-pretty-print)
-    (when (setq erg (avsait--ending-according-to-language output-buffer))
-      ;; first match of ``` is reached
-      (avsait--result-in-language-mode erg)))
-  (when avsait-format-paragraphs-p
-    ;; (unless erg
-    (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
-      (avsait-format-paragraphs)
-      (avsait-format-paragraphs t)
-      (avsait-pretty-print--backticks)
-      (avsait-just-one-empty-line)
-      ))
-  (unless test
-    (write-file (expand-file-name
-                 (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
-                                                                         (buffer-name (current-buffer)))
-                         ;; (concat avsait-output-dir "/" (buffer-name (current-buffer))
-                         (if erg
-                             (cadr erg)
-                           (pcase major-mode
-                             (`python-mode ".py")
-                             (_ ".org"))))))))
+  (let (lang-and-ending)
+    (when avsait-pretty-print-p
+      (avsait-pretty-print)
+      (when (setq lang-and-ending (avsait--ending-according-to-language output-buffer))
+        ;; first match of ``` is reached
+        (avsait--result-in-language-mode lang-and-ending)))
+    (when avsait-format-paragraphs-p
+      ;; (unless lang-and-ending
+      (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
+          (progn
+            (avsait-pretty-print--org-fill-paragraph)
+            (avsait-format-paragraphs))
+        (avsait-format-paragraphs t)
+        (avsait-pretty-print--backticks (car lang-and-ending)))
+      (avsait-just-one-empty-line))
+    (unless test
+      (write-file (expand-file-name
+                   (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
+                                                                           (buffer-name (current-buffer)))
+                           ;; (concat avsait-output-dir "/" (buffer-name (current-buffer))
+                           (if lang-and-ending
+                               (cadr lang-and-ending)
+                             (pcase major-mode
+                               (`python-mode ".py")
+                               (_ ".org")))))))))
 
 (defun avsait--read-input-file (file)
   ""
@@ -688,7 +735,9 @@ TEXT: the query when called from a program"
   (interactive "P")
   ;; (unless (eq 4 (prefix-numeric-value arg))
   ;; (find-file avsait-input-file))
-  (let* ((text (cond (test)
+  (let* ((text (cond ((and (stringp arg)
+                           arg))
+                     (test)
                      (text)
                      (;; current-buffer
                       (eq 4 (prefix-numeric-value arg))
@@ -696,25 +745,25 @@ TEXT: the query when called from a program"
                      ((and (or avsait-read-from-input-file-p (eq 4 (prefix-numeric-value arg)))
                            (not (string= "" avsait-input-file)))
                       (avsait--read-input-file avsait-input-file))
-                      ;; (progn (find-file (expand-file-name avsait-input-file))
-                      ;;        (with-current-buffer (get-file-buffer avsait-input-file)
-                      ;;          (message "%s" (get-file-buffer avsait-input-file))
-                      ;;          ;; (message "%s" (buffer-name avsait-input-file)))
-                      ;;          (replace-regexp-in-string "\\\n\\|\\\t" " " (buffer-substring-no-properties (point-min) (point-max))))))
+                     ;; (progn (find-file (expand-file-name avsait-input-file))
+                     ;;        (with-current-buffer (get-file-buffer avsait-input-file)
+                     ;;          (message "%s" (get-file-buffer avsait-input-file))
+                     ;;          ;; (message "%s" (buffer-name avsait-input-file)))
+                     ;;          (replace-regexp-in-string "\\\n\\|\\\t" " " (buffer-substring-no-properties (point-min) (point-max))))))
                      (t (read-from-minibuffer "Eingabe: " (car kill-ring)))))
          (neutext text)
-         (model (or model "llama-3.3-70b-versatile"))
+         (model (or model "openai/gpt-oss-120b"))
          (start (point-min)
-          ;; (if (string-match " " text)
-          ;;           (+ 1 (string-match " " text))
-          ;;         0)
-          )
+                ;; (if (string-match " " text)
+                ;;           (+ 1 (string-match " " text))
+                ;;         0)
+                )
          (outbut-buffer-init-text (or test (capitalize (substring text 0 (and (string-match "[^ ]+ +[^ ]+" text start) (match-end 0))))))
          (output-buffer (or test (if (not (string= "" avsait-output-buffer))
                                      avsait-output-buffer
                                    ;; (concat (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))) ".text")
                                    (replace-regexp-in-string "[^[:alnum:]_]" "" (concat outbut-buffer-init-text (make-temp-name "_"))))))
-         erg)
+         )
     (or test (shell-command (concat "curl " api " \
 -H \"Content-Type: application/json\" \
 -H \"Authorization: Bearer " key "\" \
@@ -734,8 +783,10 @@ TEXT: the query when called from a program"
         (avsait--write-debug-output output-buffer))
       (avsait--pp-and-language output-buffer)
       ;; (avsait-format-paragraphs)
-    (when (buffer-live-p (concat output-buffer (or erg ".org")))
-      (switch-to-buffer (concat output-buffer (or erg ".org")))))))
+
+      ;; (when (buffer-live-p (concat output-buffer (or erg ".org")))
+        ;; (switch-to-buffer (concat output-buffer (or erg ".org"))))
+      )))
 
 (provide 'avsait)
 ;;; avsait.el ends here
