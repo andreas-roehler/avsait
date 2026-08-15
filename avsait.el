@@ -80,102 +80,6 @@ Default is ‘t’"
   :type 'int
   :group 'avsait)
 
-(defun avsait--table-narrow-cell (n)
-  "Narrow the current cell by N columns and shrink the cell horizontally.
-Some other cells in the same table are narrowed as well to keep the
-table's rectangle structure."
-  (interactive "*p")
-  (if (< n 0) (setq n 1))
-  (table--finish-delayed-tasks)
-  (let* ((coord-list (table--cell-list-to-coord-list (table--vertical-cell-list)))
-	 (current-cell (table--cell-to-coord (table--probe-cell)))
-	 (current-coordinate (table--get-coordinate))
-	 tmp-list)
-    (message "Narrowing...");; this operation may be lengthy
-    ;; determine the doable n by try narrowing each cell.
-    (setq tmp-list coord-list)
-    (while tmp-list
-      (let ((cell (prog1 (car tmp-list) (setq tmp-list (cdr tmp-list))))
-	    (table-inhibit-update t)
-	    cell-n)
-	(table--goto-coordinate (car cell))
-	(table-recognize-cell 'force)
-	(table-with-cache-buffer
-          ;; (switch-to-buffer (current-buffer))
-	  (table--fill-region (point-min) (point-max) (- table-cell-info-width n))
-	  (if (< (setq cell-n (- table-cell-info-width (table--measure-max-width))) n)
-	      (setq n cell-n))
-	  (erase-buffer)
-	  (setq table-inhibit-auto-fill-paragraph t))))
-    (if (< n 1) nil
-      ;; narrow only the contents of each cell but leave the cell frame as is because
-      ;; we need to have valid frame structure in order for table-with-cache-buffer
-      ;; to work correctly.
-      (setq tmp-list coord-list)
-      (while tmp-list
-	(let* ((cell (prog1 (car tmp-list) (setq tmp-list (cdr tmp-list))))
-	       (table-inhibit-update t)
-	       (currentp (equal cell current-cell))
-	       old-height)
-	  (if currentp (table--goto-coordinate current-coordinate)
-	    (table--goto-coordinate (car cell)))
-	  (table-recognize-cell 'force)
-	  (setq old-height table-cell-info-height)
-	  (table-with-cache-buffer
-            ;; (switch-to-buffer (current-buffer))
-	    (let ((out-of-bound (>= (- (car current-coordinate) (car table-cell-info-lu-coordinate))
-				    (- table-cell-info-width n)))
-		  (sticky (and currentp
-			       (save-excursion
-				 (unless (bolp) (forward-char -1))
-				 (looking-at ".*\\S ")))))
-	      (table--fill-region (point-min) (point-max) (- table-cell-info-width n))
-	      (if (or sticky (and currentp (looking-at ".*\\S ")))
-		  (setq current-coordinate (table--transcoord-cache-to-table))
-		(if out-of-bound (setcar current-coordinate
-					 (+ (car table-cell-info-lu-coordinate) (- table-cell-info-width n 1))))))
-	    (setq table-inhibit-auto-fill-paragraph t))
-	  (table--update-cell 'now)
-	  ;; if this cell heightens and pushes the current cell below, move
-	  ;; the current-coordinate (point location) down accordingly.
-	  (if currentp (setq current-coordinate (table--get-coordinate))
-	    (if (and (> table-cell-info-height old-height)
-		     (> (cdr current-coordinate) (cdr table-cell-info-lu-coordinate)))
-		(setcdr current-coordinate (+ (cdr current-coordinate)
-					      (- table-cell-info-height old-height)))))
-	  ))
-      ;; coord-list is now possibly invalid since some cells may have already
-      ;; been heightened so recompute them by table--vertical-cell-list.
-      (table--goto-coordinate current-coordinate)
-      (setq coord-list (table--cell-list-to-coord-list (table--vertical-cell-list)))
-      ;; push in the affected area above and below this table so that things
-      ;; on the right side of the table are shifted horizontally neatly.
-      (table--horizontally-shift-above-and-below (- n) (reverse coord-list))
-      ;; finally narrow the frames for each cell.
-      (let* ((below-list nil)
-	     (this-list coord-list)
-	     (above-list (cdr coord-list)))
-	(while this-list
-	  (let* ((below (prog1 (car below-list) (setq below-list (if below-list (cdr below-list) coord-list))))
-		 (this (prog1 (car this-list) (setq this-list (cdr this-list))))
-		 (above (prog1 (car above-list) (setq above-list (cdr above-list)))))
-	    (delete-rectangle
-	     (table--goto-coordinate
-	      (cons (- (cadr this) n)
-		    (if (or (null above) (<= (cadr this) (cadr above)))
-			(1- (cdar this))
-		      (cdar this))))
-	     (table--goto-coordinate
-	      (cons (cadr this)
-		    (if (or (null below) (< (cadr this) (cadr below)))
-			(1+ (cddr this))
-		      (cddr this)))))))))
-    (table--goto-coordinate current-coordinate)
-    ;; re-recognize the current cell's new dimension
-    (setq erg (table-recognize-cell 'force))
-    (message "%s" erg)
-    (message "")))
-
 (defun avsait--org-table-convert-and-align ()
   ""
   (interactive "*")
@@ -196,25 +100,17 @@ table's rectangle structure."
           ;; (search-forward "UI)")
           (when (org-at-table-p)
             (org-table-align)
-            (org-table-convert)
-            )
+            (org-table-convert))
           ;; (search-forward "Model")
           (skip-chars-forward "^|")
           (when (eq (char-after) ?|)
             (forward-char 1))
-          ;; (setq orig (point))
           (while (and (not done)(not (eobp)))
             (when (string-match "|" (buffer-substring-no-properties (point) (line-end-position)))
               (avsait--table-narrow-cell avsait-cell-length))
             (skip-chars-forward "^|")
             (when (eq (char-after) ?|)
-              (forward-char 1)))
-          ;; (unless (< (progn (skip-chars-forward "^|")(point)) orig)
-          ;;   (setq done t))
-          )))
-    ))
-
-
+              (forward-char 1))))))))
 
 (defun avsait--leerzeile-org-kapitel ()
   (interactive "*")
@@ -227,7 +123,7 @@ table's rectangle structure."
         (end-of-line)
         (newline 1)))))
 
-(defun just-one-empty-line (&optional beg end)
+(defun avsait--just-one-empty-line (&optional beg end)
   "Delete consecutive empty lines, retain just one.
 
 Works on region if active.
@@ -243,22 +139,21 @@ Accepts optional arguments BEG END to specify a region"
 		     (region-end))
 		    (t (point-max)))))
         previous-line-was-empty)
-    (save-excursion
-      (save-restriction
-        (narrow-to-region beg end)
-        (goto-char beg)
-        (while (not (eobp))
-          (if (looking-at "\\([ \t]*\\)$")
-              (if previous-line-was-empty
-                  (delete-char 1)
-                (setq previous-line-was-empty t)
-                (forward-line 1))
-            (setq previous-line-was-empty nil)
-            (forward-line 1)))
-        ;; (je-ein-leerzeichen-im-bereich beg end)
-	(widen))))
-  (when (eq major-mode 'org-mode)
-    (save-excursion
+    ;; (save-excursion
+    ;; (save-restriction
+    ;; (narrow-to-region beg end)
+    (goto-char beg)
+    (while (not (eobp))
+      (if (looking-at "\\([ \t]*\\)$")
+          (if previous-line-was-empty
+              (delete-char 1)
+            (setq previous-line-was-empty t)
+            (forward-line 1))
+        (setq previous-line-was-empty nil)
+        (forward-line 1)))
+    ;; (je-ein-leerzeichen-im-bereich beg end)
+    (when (eq major-mode 'org-mode)
+      ;; (save-excursion
       (avsait--leerzeile-org-kapitel))))
 
 (defun avsait--format-paragraphs-intern (at-program fill-command)
@@ -284,28 +179,28 @@ Accepts optional arguments BEG END to specify a region"
         done)
     (while (progn
              (skip-chars-forward " \t\r\n\f")
-             (save-restriction
-               (narrow-to-region (point) (point-max))
-               ;; (if plain
-               ;; don't format a paragraph after ```plain
-               (cond (done
-                      ;; dont (format when set
-                      (setq done nil)
-                      (forward-paragraph)
-                      (skip-chars-forward " \t\r\n\f"))
-                     ((looking-at "^|\\|\\+-")
-                      ;; table, dont't (format
-                      (forward-paragraph)
-                      (skip-chars-forward " \t\r\n\f"))
-                     ((looking-at "```plain")
-                      (setq done t)
-                      (avsait--format-paragraphs-intern at-program fill-command))
-                     (t (avsait--format-paragraphs-intern at-program fill-command)
-                        (forward-paragraph)))
-               ;; (avsait--format-paragraphs-intern at-program fill-command)
-               ;; )
-               (and (<  orig (point))
-                    (setq orig (point))))))
+             ;; (save-restriction
+             ;; (narrow-to-region (point) (point-max))
+             ;; (if plain
+             ;; don't format a paragraph after ```plain
+             (cond (done
+                    ;; dont (format when set
+                    (setq done nil)
+                    (forward-paragraph)
+                    (skip-chars-forward " \t\r\n\f"))
+                   ((looking-at "^|\\|\\+-")
+                    ;; table, dont't (format
+                    (forward-paragraph)
+                    (skip-chars-forward " \t\r\n\f"))
+                   ((looking-at "```plain")
+                    (setq done t)
+                    (avsait--format-paragraphs-intern at-program fill-command))
+                   (t (avsait--format-paragraphs-intern at-program fill-command)
+                      (forward-paragraph)))
+             ;; (avsait--format-paragraphs-intern at-program fill-command)
+             ;; )
+             (and (<  orig (point))
+                  (setq orig (point)))))
     (goto-char (point-min))
     (while (re-search-forward "^*" nil t 1)
       (when (search-forward ":" (line-end-position) 1)
@@ -316,9 +211,9 @@ Accepts optional arguments BEG END to specify a region"
     (goto-char (point-min))
     (while (re-search-forward "^-" nil t 1)
       (avsait--format-paragraphs-intern at-program fill-command))
-    (just-one-empty-line)))
+    (avsait--just-one-empty-line)))
 
-(defun avsait-just-one-empty-line (&optional beg end)
+(defun avsait-avsait--just-one-empty-line (&optional beg end)
   "Delete consecutive empty lines, retain just one.
 
 Works on region if active.
@@ -477,18 +372,6 @@ ARG RES: the first match of some code section"
              (end (copy-marker (or end (point-max)))))
         ;; if not at BOB, the previous section doesn't belong to a specific mode
         ;; so let's apply text
-        (unless (bobp)
-          (save-excursion
-            (goto-char (point-min))
-            (insert "#+begin_src text")
-            (newline 1))
-          (beginning-of-line)
-          (end-of-line)
-          (newline 1)
-          (insert "#+end_src")
-          (newline 1)
-          (save-excursion
-            (indent-region (progn (forward-line -2)(end-of-line)(point))(progn (search-backward "#+begin_src text")(+ (line-end-position) 1)))))
         (save-restriction
           (newline 1)
           (narrow-to-region (point) end)
@@ -500,7 +383,7 @@ ARG RES: the first match of some code section"
           (save-restriction
             (narrow-to-region (point) (point-max))
             (if (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
-                (avsait--result-in-language-mode (avsait--ending-according-to-language (current-buffer)) orig this-mode beg end)
+                (avsait--result-in-language-mode (avsait--markup-according-to-language (current-buffer)) orig this-mode beg end)
               (unless
                   (eobp)
                 ;;  just plain text below
@@ -636,7 +519,6 @@ ARG RES: the first match of some code section"
         (delete-region (point) (point-max)))
       (delete-region (point) (point-min)))))
 
-
 (defun avsait-pretty-print--tldr ()
   ""
   (interactive "*")
@@ -767,7 +649,7 @@ ARG RES: the first match of some code section"
     (avsait-pretty-print--content)
     (avsait-pretty-print--single-paren)
     (avsait-pretty-print--enumerations)
-    (avsait-just-one-empty-line)
+    (avsait-avsait--just-one-empty-line)
     (avsait-pretty-start-end-spaces)
     (when avsait-allow-special-edits-p (avsait--special-edits))
     ;; (avsait--adjust-templates)
@@ -778,62 +660,53 @@ ARG RES: the first match of some code section"
     (avsait-pretty-print--end)
 ))
 
-(defun avsait--ending-according-to-language (output-buffer)
+(defun avsait--markup-according-to-language (output-buffer)
   ""
   (interactive
    (list (current-buffer)))
   (with-current-buffer output-buffer
     (goto-char (point-min))
-    (when (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
-      (list (match-string-no-properties 1)
-            (pcase (match-string-no-properties 1)
-              ("ada" ".ada")
-              ("assembly" ".asm")
-              ("awk" ".awk")
-              ("bash" ".sh")
-              ("c" ".c")
-              ("c++" ".cpp")
-              ("clojure" ".clj")
-              ("common" ".lisp")
-              ("css" ".css")
-              ("elisp" ".el")
-              ("emacs" ".el")
-              ("erlang" ".erl")
-              ("forth" ".f")
-              ("fortran" ".f90")
-              ("go" ".go")
-              ("haskell" ".hs")
-              ("html" ".html")
-              ("java" ".java")
-              ("javascript" ".js")
-              ("json" ".json")
-              ("julia" ".jl")
-              ("latex" ".tex")
-              ("lisp" ".el")
-              ("lua" ".lua")
-              ("makefile" ".mak")
-              ("matlab" ".m")
-              ("objective-c" ".h")
-              ("ocaml" ".ml")
-              ("php" ".php")
-              ("perl" ".pl")
-              ("python" ".py")
-              ("r" ".r")
-              ("ruby" ".rb")
-              ("rust" ".rs")
-              ("scala" ".scala")
-              ("scheme" ".scm")
-              ("shell" ".sh")
-              ("sql" ".zsh")
-              ("swift" ".sql")
-              ("tcl" ".swift")
-              ("tex" ".tcl")
-              ("vh-----dl" ".tex")
-              ("verilog" ".vhd")
-              ("vue.js" ".v")
-              ("yaml"  ".yml")
-              ("yml"  ".yml")
-              )))))
+    (while (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
+           (replace-match
+            (concat "#+begin_src " (match-string-no-properties 1)))
+           (re-search-forward "```" nil t 1)
+           (replace-match "#+end_src"))))
+
+(defun avsait--markup-text-src-intern (beg end)
+  (interactive)
+  (let ((end (copy-marker end)))
+    (goto-char beg)
+    (unless (bolp)
+      (newline 1) )
+    (insert "#+begin_src text")
+    (newline 1)
+    (goto-char end)
+    (unless (bolp)
+      (newline 1) )
+    (insert "#+end_src")
+    (newline 1)
+    ;; (indent-region (progn (forward-line -2)(end-of-line)(point))(progn (search-backward "#+begin_src text")(+ (line-end-position) 1)))
+    ))
+
+(defun avsait--markup-text-src (output-buffer)
+  "Mark sections as text, which are not marked language specific yet. "
+  (interactive
+   (list (current-buffer)))
+  (with-current-buffer output-buffer
+    (goto-char (point-min))
+    (let ((last (point))
+          end)
+      (while (re-search-forward "^#\\+begin_src" nil 'move)
+        ;; got some section already marked-up
+        (unless (bobp)
+          (setq end (line-beginning-position))
+          (avsait--markup-text-src-intern last end)
+          (end-of-line)
+          (re-search-forward "^#\\+end_src" nil 'move 1)
+          (setq last (match-end 0))))
+      ;; last section in buffer
+      (when (< last (line-beginning-position))
+        (avsait--markup-text-src-intern last (point))))))
 
 (defun avsait--write-debug-output (output-buffer)
   ""
@@ -851,35 +724,37 @@ ARG RES: the first match of some code section"
    (list (current-buffer)))
   (when avsait-pretty-print-p
     (avsait-pretty-print)
-    (let ((lang-and-ending (avsait--ending-according-to-language output-buffer)))
-      (unless test
-        (write-file (expand-file-name
-                     (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
-                                                                             (buffer-name (current-buffer)))
-                             ".org"))))
-      (avsait--org-table-convert-and-align)
-      (when lang-and-ending
-        ;; first match of ``` is reached
-        (avsait--result-in-language-mode lang-and-ending))
-      (when avsait-format-paragraphs-p
-        ;; (unless lang-and-ending
-        (goto-char (point-min))
-
-        (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
-            (progn
+    (avsait--markup-according-to-language output-buffer)
+    ;; (let ((lang-and-ending (avsait--markup-according-to-language output-buffer)))
+    ;;   (unless test
+    ;;     (write-file (expand-file-name
+    ;;                  (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
+    ;;                                                                          (buffer-name (current-buffer)))
+    ;;                          ".org"))))
+    (avsait--org-table-convert-and-align)
+    ;; (when lang-and-ending
+      ;; first match of ``` is reached
+      ;; (avsait--result-in-language-mode lang-and-ending))
+    (avsait--markup-text-src output-buffer)
+    (when avsait-format-paragraphs-p
+      ;; (unless lang-and-ending
+      (goto-char (point-min))
+      (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
+          (progn
               (save-excursion
               (avsait-pretty-print--org-fill-paragraph))
               (save-excursion (avsait-format-paragraphs)))
           (save-excursion (avsait-format-paragraphs t))
-          (save-excursion (avsait-pretty-print--backticks (car lang-and-ending))))
-        (avsait-just-one-empty-line)))
+          ;; (save-excursion (avsait-pretty-print--backticks (car lang-and-ending)))
+)
+        (avsait-avsait--just-one-empty-line)))
     (unless test
       (write-file (buffer-file-name)))
     ;; (expand-file-name
     ;;  (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
     ;;                                                          (buffer-name (current-buffer)))
     ;;                     ".org"))
-    ))
+    )
                            ;; (if lang-and-ending
                            ;;     (cadr lang-and-ending)
                            ;;   (pcase major-mode
@@ -961,7 +836,7 @@ TEXT: the query when called from a program"
           avsait-debug-p
         (avsait--write-debug-output output-buffer))
       (avsait--pp-and-language output-buffer)
-      ;; (avsait-format-paragraphs)
+      (avsait-format-paragraphs)
 
       ;; (when (buffer-live-p (concat output-buffer (or erg ".org")))
         ;; (switch-to-buffer (concat output-buffer (or erg ".org"))))
