@@ -48,8 +48,13 @@
 
 ;;; Code:
 
-(require 'avsait-api)
+;; (require 'avsait-api)
+(require 'table)
 (require 'avsait-config)
+(require 'avsait-secrets)
+
+(when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
+  (require 'avsait-secrets))
 
 (defgroup avsait nil
   "Question LLMs" ;; generic mark
@@ -70,8 +75,146 @@ Default is ‘t’"
   :type 'boolean
   :group 'avsait)
 
-(when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
-  (require 'avsait-secrets))
+(defcustom avsait-cell-length 9
+  "Maximal length of cells: or transforms into multi-line"
+  :type 'int
+  :group 'avsait)
+
+(defun avsait--table-narrow-cell (n)
+  "Narrow the current cell by N columns and shrink the cell horizontally.
+Some other cells in the same table are narrowed as well to keep the
+table's rectangle structure."
+  (interactive "*p")
+  (if (< n 0) (setq n 1))
+  (table--finish-delayed-tasks)
+  (let* ((coord-list (table--cell-list-to-coord-list (table--vertical-cell-list)))
+	 (current-cell (table--cell-to-coord (table--probe-cell)))
+	 (current-coordinate (table--get-coordinate))
+	 tmp-list)
+    (message "Narrowing...");; this operation may be lengthy
+    ;; determine the doable n by try narrowing each cell.
+    (setq tmp-list coord-list)
+    (while tmp-list
+      (let ((cell (prog1 (car tmp-list) (setq tmp-list (cdr tmp-list))))
+	    (table-inhibit-update t)
+	    cell-n)
+	(table--goto-coordinate (car cell))
+	(table-recognize-cell 'force)
+	(table-with-cache-buffer
+          ;; (switch-to-buffer (current-buffer))
+	  (table--fill-region (point-min) (point-max) (- table-cell-info-width n))
+	  (if (< (setq cell-n (- table-cell-info-width (table--measure-max-width))) n)
+	      (setq n cell-n))
+	  (erase-buffer)
+	  (setq table-inhibit-auto-fill-paragraph t))))
+    (if (< n 1) nil
+      ;; narrow only the contents of each cell but leave the cell frame as is because
+      ;; we need to have valid frame structure in order for table-with-cache-buffer
+      ;; to work correctly.
+      (setq tmp-list coord-list)
+      (while tmp-list
+	(let* ((cell (prog1 (car tmp-list) (setq tmp-list (cdr tmp-list))))
+	       (table-inhibit-update t)
+	       (currentp (equal cell current-cell))
+	       old-height)
+	  (if currentp (table--goto-coordinate current-coordinate)
+	    (table--goto-coordinate (car cell)))
+	  (table-recognize-cell 'force)
+	  (setq old-height table-cell-info-height)
+	  (table-with-cache-buffer
+            ;; (switch-to-buffer (current-buffer))
+	    (let ((out-of-bound (>= (- (car current-coordinate) (car table-cell-info-lu-coordinate))
+				    (- table-cell-info-width n)))
+		  (sticky (and currentp
+			       (save-excursion
+				 (unless (bolp) (forward-char -1))
+				 (looking-at ".*\\S ")))))
+	      (table--fill-region (point-min) (point-max) (- table-cell-info-width n))
+	      (if (or sticky (and currentp (looking-at ".*\\S ")))
+		  (setq current-coordinate (table--transcoord-cache-to-table))
+		(if out-of-bound (setcar current-coordinate
+					 (+ (car table-cell-info-lu-coordinate) (- table-cell-info-width n 1))))))
+	    (setq table-inhibit-auto-fill-paragraph t))
+	  (table--update-cell 'now)
+	  ;; if this cell heightens and pushes the current cell below, move
+	  ;; the current-coordinate (point location) down accordingly.
+	  (if currentp (setq current-coordinate (table--get-coordinate))
+	    (if (and (> table-cell-info-height old-height)
+		     (> (cdr current-coordinate) (cdr table-cell-info-lu-coordinate)))
+		(setcdr current-coordinate (+ (cdr current-coordinate)
+					      (- table-cell-info-height old-height)))))
+	  ))
+      ;; coord-list is now possibly invalid since some cells may have already
+      ;; been heightened so recompute them by table--vertical-cell-list.
+      (table--goto-coordinate current-coordinate)
+      (setq coord-list (table--cell-list-to-coord-list (table--vertical-cell-list)))
+      ;; push in the affected area above and below this table so that things
+      ;; on the right side of the table are shifted horizontally neatly.
+      (table--horizontally-shift-above-and-below (- n) (reverse coord-list))
+      ;; finally narrow the frames for each cell.
+      (let* ((below-list nil)
+	     (this-list coord-list)
+	     (above-list (cdr coord-list)))
+	(while this-list
+	  (let* ((below (prog1 (car below-list) (setq below-list (if below-list (cdr below-list) coord-list))))
+		 (this (prog1 (car this-list) (setq this-list (cdr this-list))))
+		 (above (prog1 (car above-list) (setq above-list (cdr above-list)))))
+	    (delete-rectangle
+	     (table--goto-coordinate
+	      (cons (- (cadr this) n)
+		    (if (or (null above) (<= (cadr this) (cadr above)))
+			(1- (cdar this))
+		      (cdar this))))
+	     (table--goto-coordinate
+	      (cons (cadr this)
+		    (if (or (null below) (< (cadr this) (cadr below)))
+			(1+ (cddr this))
+		      (cddr this)))))))))
+    (table--goto-coordinate current-coordinate)
+    ;; re-recognize the current cell's new dimension
+    (setq erg (table-recognize-cell 'force))
+    (message "%s" erg)
+    (message "")))
+
+(defun avsait--org-table-convert-and-align ()
+  ""
+  (interactive "*")
+  (let ((orig (copy-marker (point)))
+        done)
+    (goto-char (point-min))
+    (while (re-search-forward "^ *|" nil t 1)
+      (beginning-of-line)
+      (setq orig (point))
+      (save-restriction
+        (narrow-to-region
+         (or (and (bobp) (point))(- (line-beginning-position) 1))
+         (progn (while (and (forward-line 1) (looking-at "^ *|")))(point)))
+        (goto-char orig)
+        (while (re-search-forward "^ *|" nil t 1)
+          (skip-chars-forward "^|")
+          (backward-char)
+          ;; (search-forward "UI)")
+          (when (org-at-table-p)
+            (org-table-align)
+            (org-table-convert)
+            )
+          ;; (search-forward "Model")
+          (skip-chars-forward "^|")
+          (when (eq (char-after) ?|)
+            (forward-char 1))
+          ;; (setq orig (point))
+          (while (and (not done)(not (eobp)))
+            (when (string-match "|" (buffer-substring-no-properties (point) (line-end-position)))
+              (avsait--table-narrow-cell avsait-cell-length))
+            (skip-chars-forward "^|")
+            (when (eq (char-after) ?|)
+              (forward-char 1)))
+          ;; (unless (< (progn (skip-chars-forward "^|")(point)) orig)
+          ;;   (setq done t))
+          )))
+    ))
+
+
 
 (defun avsait--leerzeile-org-kapitel ()
   (interactive "*")
@@ -150,7 +293,7 @@ Accepts optional arguments BEG END to specify a region"
                       (setq done nil)
                       (forward-paragraph)
                       (skip-chars-forward " \t\r\n\f"))
-                     ((looking-at "^|")
+                     ((looking-at "^|\\|\\+-")
                       ;; table, dont't (format
                       (forward-paragraph)
                       (skip-chars-forward " \t\r\n\f"))
@@ -303,53 +446,70 @@ An alternative to ‘M-x customize-variable ...’ "
 
     ))
 
-(defun avsait--result-in-language-mode (res &optional orig this-mode first second)
-  "If some code was request, store the result in the respective mode."
+(defun avsait--result-in-language-mode (res &optional orig this-mode beg end)
+  "If some code was delivered, store the result in the respective mode.
+
+ARG RES: the first match of some code section"
   (interactive "*")
   (unless (eobp)
     (save-restriction
-      (let ((orig (copy-marker (or orig (point-min))))
-            (this-mode (or this-mode (pcase (car res)
-                                       ("bash" "sh-mode")
-                                       ("elisp" "emacs-lisp-mode")
-                                       ("emacs" "emacs-lisp-mode")
-                                       ("json" "js-json-mode")
-                                       ("scheme" "scheme-mode")
-                                       ("yml" (or
-                                               (and
-                                                (featurep (car (read-from-string (concat "yaml" "-ts-mode"))))
-                                                (concat "yaml" "-ts-mode"))
-                                               (concat "yaml" "-mode")))
-                                       (_
-                                        (cond
-                                         ((featurep (car (read-from-string (concat (match-string-no-properties 1) "-ts-mode"))))
-                                          (concat (match-string-no-properties 1) "-ts-mode"))
-                                         ((featurep (car (read-from-string (concat (match-string-no-properties 1) "-mode"))))
-                                          (concat (match-string-no-properties 1) "-mode"))
-                                         (t "fundamental-mode"))))))
-
-            (first first)
-            (second second)
-            )
-        ;; (goto-char (match-beginning 1))
-        (newline 1)
-        (funcall (car (read-from-string this-mode)))
-        (unless (string= this-mode 'fundamental-mode) (comment-region (point-min) (point)))
-        (when (re-search-forward "```" nil 'move 1)
-          (setq orig (match-beginning 0))
-          ;;  the closing ```
-          ;; put it on an extra line
-          (save-excursion (goto-char (match-beginning 0))
-                          (newline 1))
-          ;; (newline 1)
-          (unless (string= this-mode 'fundamental-mode) (comment-region orig (point)))
-          (narrow-to-region (point) (point-max))
-          (if (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
-              (avsait--result-in-language-mode res orig this-mode first second)
-            (unless
-                ;; (eq (point-min) (point-max))
-                (eobp)
-              (unless (string= this-mode 'fundamental-mode)(comment-region (point-min) (point-max))))))))))
+      (let* ((orig (copy-marker (or orig (point-min))))
+             (this-mode-raw (or this-mode (car res)))
+             (this-mode (pcase this-mode-raw
+                          ("bash" "sh")
+                          ("elisp" "emacs-lisp")
+                          ("emacs" "emacs-lisp")
+                          ("json" "js-json")
+                          ("scheme" "scheme")
+                          ("yml" (or
+                                  (and
+                                   (featurep (car (read-from-string (concat "yaml" "-ts-mode"))))
+                                   (concat "yaml" "-ts-mode"))
+                                  (concat "yaml" "-mode")))
+                          (_
+                           (cond
+                            ((featurep (car (read-from-string (concat this-mode-raw "-ts-mode"))))
+                             (concat this-mode-raw "-ts-mode"))
+                            ((featurep (car (read-from-string (concat this-mode-raw "-mode"))))
+                             this-mode-raw)
+                            (t "text")))))
+             (beg (or beg (point-min)))
+             (end (copy-marker (or end (point-max)))))
+        ;; if not at BOB, the previous section doesn't belong to a specific mode
+        ;; so let's apply text
+        (unless (bobp)
+          (save-excursion
+            (goto-char (point-min))
+            (insert "#+begin_src text")
+            (newline 1))
+          (beginning-of-line)
+          (end-of-line)
+          (newline 1)
+          (insert "#+end_src")
+          (newline 1)
+          (save-excursion
+            (indent-region (progn (forward-line -2)(end-of-line)(point))(progn (search-backward "#+begin_src text")(+ (line-end-position) 1)))))
+        (save-restriction
+          (newline 1)
+          (narrow-to-region (point) end)
+          ;; at the first mode match
+          (insert (concat "#+begin_src " this-mode))
+          (when (re-search-forward "```" nil 'move 1)
+            (replace-match "#+end_src"))
+          (newline 1)
+          (save-restriction
+            (narrow-to-region (point) (point-max))
+            (if (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
+                (avsait--result-in-language-mode (avsait--ending-according-to-language (current-buffer)) orig this-mode beg end)
+              (unless
+                  (eobp)
+                ;;  just plain text below
+                (insert "#+begin_src text")
+                (newline 1)
+                (goto-char (point-max))
+                 (newline 1)
+                (insert "#+end_src")
+                ))))))))
 
 (defun avsait--special-edits ()
   (when (looking-at "{\"id\":.+\"content\":\"")
@@ -454,18 +614,36 @@ An alternative to ‘M-x customize-variable ...’ "
     (goto-char (point-min))
     (when (eq (char-after) ?{)
       (delete-char 1))
-    (when (eq (char-after) ?\")
-      (delete-char 1)
-      )
+    ;; (when (eq (char-after) ?\")
+    ;; (delete-char 1)
     (goto-char (point-max))
     (skip-chars-backward " \t\r\n\f")
     (when (eq (char-before) ?})
-      (delete-char -1)
-      )
-    (when (eq (char-before) ?\")
-      (delete-char -1)
-      )
+      (delete-char -1))
+    ;; (when (eq (char-before) ?\")
+    ;; (delete-char -1)
     ))
+
+(defun avsait-pretty-print--start ()
+  ""
+  (interactive "*")
+  (save-excursion
+    (goto-char (point-min))
+    (when (search-forward "content\":" nil t)
+      (save-excursion
+      (goto-char (nth 1 (parse-partial-sexp (point-min) (point))))
+        (forward-sexp)
+        (delete-region (point) (point-max)))
+      (delete-region (point) (point-min)))))
+
+
+(defun avsait-pretty-print--tldr ()
+  ""
+  (interactive "*")
+  (save-excursion
+    (goto-char (point-min))
+    (when (search-forward "TL;DR" nil t 1)
+      (delete-region (point-min) (match-end 0)))))
 
 (defun avsait-pretty-print--i-hope ()
   (save-excursion
@@ -496,29 +674,15 @@ An alternative to ‘M-x customize-variable ...’ "
   (save-excursion (when (search-forward "\"content\":" nil t 1)
                     (newline 2))))
 
-;; (defun avsait-pretty-print--keywords ()
-;;   (interactive "*")
-;;   (save-excursion (while (re-search-forward (regexp-opt (list
-;;                                                          "id"
-;;                                                          "index"
-;;                                                          "logprobs"
-;;                                                          "role"
-;;                                                          "usage"
-;;                                                          )
-;;                                                         'symbols)
-;;                                             nil t 1)
-;;                     (delete-region (line-beginning-position) (line-end-position)))))
-
-(defun avsait-pretty-print--keywords ()
+(defun avsait-pretty-print--end ()
   (interactive "*")
-  (save-excursion (when (search-forward "content\":" nil t)
+  (save-excursion
+    (goto-char (point-min))
+    (when (search-forward "queue_time\":" nil t)
                     (save-excursion
-                      (forward-sexp)
-                      (delete-region (point) (point-max))
-                      (backward-delete-char-untabify 1))
-                    (delete-region (point-min) (point))))
-  (when (eq (char-after) 34)
-    (delete-char 1)))
+                      (goto-char (nth 1 (parse-partial-sexp (point-min) (point)) ))
+                      (backward-sexp)
+                      (delete-region (point) (point-max))))))
 
 (defun avsait-pretty-print--single-paren ()
   (interactive "*")
@@ -583,10 +747,11 @@ An alternative to ‘M-x customize-variable ...’ "
   (let (erg previous-line-was-empty)
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
+    ;; (avsait-pretty-print--enclosing-braces)
+    ;; (avsait-pretty-print--tldr)
+    (avsait-pretty-print--start)
     (avsait-pretty-print--bash-prompt)
     (avsait-pretty-print--star-after-newline)
-    (avsait-pretty-print--keywords)
-    ;; (avsait-pretty-print--enclosing-braces)
     (avsait--fix-ampersand)
     (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
@@ -609,7 +774,9 @@ An alternative to ‘M-x customize-variable ...’ "
     (avsait--adjust-newlines)
     (avsait--adjust-paragraphs)
     (avsait--delete-consecutive-empty-lines)
-    (avsait--fix-end-of-lines)))
+    (avsait--fix-end-of-lines)
+    (avsait-pretty-print--end)
+))
 
 (defun avsait--ending-according-to-language (output-buffer)
   ""
@@ -682,31 +849,43 @@ An alternative to ‘M-x customize-variable ...’ "
   ""
   (interactive
    (list (current-buffer)))
-  (let (lang-and-ending)
-    (when avsait-pretty-print-p
-      (avsait-pretty-print)
-      (when (setq lang-and-ending (avsait--ending-according-to-language output-buffer))
+  (when avsait-pretty-print-p
+    (avsait-pretty-print)
+    (let ((lang-and-ending (avsait--ending-according-to-language output-buffer)))
+      (unless test
+        (write-file (expand-file-name
+                     (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
+                                                                             (buffer-name (current-buffer)))
+                             ".org"))))
+      (avsait--org-table-convert-and-align)
+      (when lang-and-ending
         ;; first match of ``` is reached
-        (avsait--result-in-language-mode lang-and-ending)))
-    (when avsait-format-paragraphs-p
-      ;; (unless lang-and-ending
-      (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
-          (progn
-            (avsait-pretty-print--org-fill-paragraph)
-            (avsait-format-paragraphs))
-        (avsait-format-paragraphs t)
-        (avsait-pretty-print--backticks (car lang-and-ending)))
-      (avsait-just-one-empty-line))
+        (avsait--result-in-language-mode lang-and-ending))
+      (when avsait-format-paragraphs-p
+        ;; (unless lang-and-ending
+        (goto-char (point-min))
+
+        (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
+            (progn
+              (save-excursion
+              (avsait-pretty-print--org-fill-paragraph))
+              (save-excursion (avsait-format-paragraphs)))
+          (save-excursion (avsait-format-paragraphs t))
+          (save-excursion (avsait-pretty-print--backticks (car lang-and-ending))))
+        (avsait-just-one-empty-line)))
     (unless test
-      (write-file (expand-file-name
-                   (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
-                                                                           (buffer-name (current-buffer)))
-                           ;; (concat avsait-output-dir "/" (buffer-name (current-buffer))
-                           (if lang-and-ending
-                               (cadr lang-and-ending)
-                             (pcase major-mode
-                               (`python-mode ".py")
-                               (_ ".org")))))))))
+      (write-file (buffer-file-name)))
+    ;; (expand-file-name
+    ;;  (concat avsait-output-dir "/" (replace-regexp-in-string "^debug_" ""
+    ;;                                                          (buffer-name (current-buffer)))
+    ;;                     ".org"))
+    ))
+                           ;; (if lang-and-ending
+                           ;;     (cadr lang-and-ending)
+                           ;;   (pcase major-mode
+                           ;;     (`python-mode ".py")
+                           ;;     (_ ".org")))
+                           ;; ))))))
 
 (defun avsait--read-input-file (file)
   ""
