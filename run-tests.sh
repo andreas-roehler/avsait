@@ -76,6 +76,7 @@ h1() {
 --eval "(setq avsait-debug-p nil)" \
 --eval "(setq avsait-verbose-p nil)" \
 --eval "(setq avsait-install-dir \"$PWD\")" \
+--eval "(setq highlight-changes-mode nil)" \
 --eval "(add-to-list 'load-path \"$TESTDIR/\")" \
 --eval "(add-to-list 'load-path \"$PWD/\")" \
 -load $SETUP \
