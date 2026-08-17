@@ -626,7 +626,9 @@ ARG RES: the first match of some code section"
       (save-excursion
       (goto-char (nth 1 (parse-partial-sexp (point-min) (point))))
         (forward-sexp)
+        (skip-chars-backward "\"}")
         (delete-region (point) (point-max)))
+      (skip-chars-forward "\"}")
       (delete-region (point) (point-min)))))
 
 (defun avsait-pretty-print--tldr ()
@@ -739,7 +741,7 @@ ARG RES: the first match of some code section"
   (let (erg previous-line-was-empty)
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
-    ;; (avsait-pretty-print--enclosing-braces)
+    (avsait-pretty-print--enclosing-braces)
     ;; (avsait-pretty-print--tldr)
     (avsait-pretty-print--start)
     (avsait-pretty-print--bash-prompt)
@@ -777,12 +779,21 @@ ARG RES: the first match of some code section"
   (with-current-buffer output-buffer
     (goto-char (point-min))
     (while (re-search-forward "```\\([[:alpha:]]+\\)" nil t 1)
-           (replace-match
-            (concat "#+begin_src " (match-string-no-properties 1)))
-           (re-search-forward "```" nil t 1)
-           (replace-match "#+end_src"))))
+      (replace-match
+       (concat "#+begin_src " (match-string-no-properties 1)))
+      (re-search-forward "```" nil t 1)
+      (replace-match "#+end_src"))
+    (end-of-line)
+    (forward-line 1)
+    (unless (eobp)
+      (insert "#+begin_src ")
+      (unless (eolp) (newline 1))
+      (goto-char (point-max))
+      (unless (avsait--empty-line-p)
+        (newline 1))
+      (insert "#+end_src "))))
 
-(defun avsait--markup-text-src-intern (beg end)
+(defun avsait--first-text-src-intern (beg end)
   (interactive)
   (let ((end (copy-marker end)))
     (goto-char beg)
@@ -798,25 +809,30 @@ ARG RES: the first match of some code section"
     ;; (indent-region (progn (forward-line -2)(end-of-line)(point))(progn (search-backward "#+begin_src text")(+ (line-end-position) 1)))
     ))
 
-(defun avsait--markup-text-src (output-buffer)
+(defun avsait--first-text-src (output-buffer &optional done)
   "Mark sections as text, which are not marked language specific yet. "
   (interactive
    (list (current-buffer)))
   (with-current-buffer output-buffer
-    (goto-char (point-min))
-    (let ((last (point))
-          end)
-      (while (re-search-forward "^#\\+begin_src" nil 'move)
-        ;; got some section already marked-up
-        (unless (bobp)
-          (setq end (line-beginning-position))
-          (avsait--markup-text-src-intern last end)
-          (end-of-line)
-          (re-search-forward "^#\\+end_src" nil 'move 1)
-          (setq last (match-end 0))))
-      ;; last section in buffer
-      (when (< last (line-beginning-position))
-        (avsait--markup-text-src-intern last (point))))))
+    (unless done (goto-char (point-min)))
+    (unless (eobp)
+      (let ((last (point))
+            end)
+        (if (looking-at "^#\\+begin_src")
+            (progn (re-search-forward "^#\\+end_src" nil 'move 1)
+                   (skip-chars-forward " \t\r\n\f"))
+          (when (re-search-forward "^#\\+begin_src" nil 'move)
+            ;; got some section already marked-up
+            (unless (bobp)
+              (setq end (line-beginning-position))
+              (avsait--first-text-src-intern last end)
+              (end-of-line)
+              (re-search-forward "^#\\+end_src" nil 'move 1)
+              (setq last (match-end 0))))))
+      (avsait--first-text-src (current-buffer) t))
+    ;; last section in buffer
+    (when (< last (line-beginning-position))
+      (avsait--first-text-src-intern last (point)))))
 
 (defun avsait--write-debug-output (output-buffer)
   ""
@@ -836,7 +852,7 @@ ARG RES: the first match of some code section"
     (avsait-pretty-print)
     (avsait--markup-according-to-language output-buffer)
     (avsait--org-table-convert-and-align)
-    (avsait--markup-text-src output-buffer)
+    (avsait--first-text-src output-buffer)
     (when avsait-format-paragraphs-p
       (goto-char (point-min))
       (if (member major-mode (list 'fundamental-mode 'org-mode" 'text-mode"))
