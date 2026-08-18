@@ -786,12 +786,13 @@ ARG RES: the first match of some code section"
     (end-of-line)
     (forward-line 1)
     (unless (eobp)
-      (insert "#+begin_src ")
+      (insert "#+begin_src text")
       (unless (eolp) (newline 1))
       (goto-char (point-max))
       (unless (avsait--empty-line-p)
         (newline 1))
-      (insert "#+end_src "))))
+      (insert "#+end_src "))
+    ))
 
 (defun avsait--first-text-src-intern (beg end)
   (interactive)
@@ -818,21 +819,31 @@ ARG RES: the first match of some code section"
     (unless (eobp)
       (let ((last (point))
             end)
+        ;; the buffer starts with language-code marked-up by avsait--markup-according-to-language output-buffer
         (if (looking-at "^#\\+begin_src")
             (progn (re-search-forward "^#\\+end_src" nil 'move 1)
-                   (skip-chars-forward " \t\r\n\f"))
-          (when (re-search-forward "^#\\+begin_src" nil 'move)
+                   (skip-chars-forward " \t\r\n\f")
+                   (avsait--first-text-src (current-buffer) t))
+          (if (re-search-forward "^#\\+begin_src" nil 'move)
+              (progn
             ;; got some section already marked-up
-            (unless (bobp)
               (setq end (line-beginning-position))
               (avsait--first-text-src-intern last end)
               (end-of-line)
-              (re-search-forward "^#\\+end_src" nil 'move 1)
-              (setq last (match-end 0))))))
-      (avsait--first-text-src (current-buffer) t))
+              ;; jump to the end of next language-code section
+              (if (re-search-forward "^#\\+end_src" nil t 1)
+                  (progn
+                  (skip-chars-forward " \t\r\n\f")
+                  (avsait--first-text-src (current-buffer) t))
+                ;; not language-code further down
+                (skip-chars-forward " \t\r\n\f")
+                (avsait--first-text-src (current-buffer) t)))
+            ;; there was no language-code in this buffer
+            (avsait--first-text-src-intern (point-min) (point-max))))))))
+
     ;; last section in buffer
-    (when (< last (line-beginning-position))
-      (avsait--first-text-src-intern last (point)))))
+    ;; (when (< last (line-beginning-position))
+      ;; (avsait--first-text-src-intern last (point)))))
 
 (defun avsait--write-debug-output (output-buffer)
   ""
