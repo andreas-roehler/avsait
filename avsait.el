@@ -55,7 +55,8 @@
 (require 'avsait-config)
 (unless (featurep 'avsait-secrets)
   (load (concat default-directory "avsait-secrets.el")))
-(require 'avsait-secrets)
+
+;; (require 'avsait-secrets)
 (require 'org-table)
 
 (when (and (getenv "IFLOCAL") (eq 0 (getenv "IFLOCAL")))
