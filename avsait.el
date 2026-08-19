@@ -748,7 +748,7 @@ ARG RES: the first match of some code section"
     (avsait-pretty-print--bash-prompt)
     (avsait-pretty-print--star-after-newline)
     (avsait--fix-ampersand)
-    (avsait-pretty-print--newlines-when-nest)
+    ;; (avsait-pretty-print--newlines-when-nest)
     (avsait-pretty-print--newlines)
     (avsait-pretty-print--triple-backtics)
     (avsait-pretty-print--tabs)

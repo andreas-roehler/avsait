@@ -138,10 +138,22 @@ Default is nil"
   (interactive "P")
   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "qwen/qwen3.6-27b"))
 
+
+
+;; (defun gemma  (&optional arg)
+;;   "gemma‑2b‑instruct"
+;;   (interactive "P")
+;;   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "gemma2b.instruct"))
+
+;; (defun mixtral  (&optional arg)
+;;   "mixtral‑8x22b‑instruct"
+;;   (interactive "P")
+;;   (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "mixtral8x22b-instruct"))
+
 (defalias 'gb 'groq-compound)
 (defun groq-compound (&optional arg)
   (interactive "P")
-  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "llama-3.3-70b-versatile" "compound-beta"))
+  (avsait arg "https://api.groq.com/openai/v1/chat/completions -s" groq_pw "openai/gpt-oss-120b" "compound-beta"))
 
 (provide 'avsait-config)
 ;;; avsait-config.el ends here
